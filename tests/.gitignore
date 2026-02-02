@@ -1,0 +1,6 @@
+# Test outputs (not tracked, generated from inputs)
+outputs/
+
+# Optional: Keep expected outputs in version control
+# If you want to regenerate them, uncomment this:
+# expected/

@@ -1,0 +1,24 @@
+.vscode/**
+.vscode-test/**
+src/**
+.gitignore
+.yarnrc
+vsc-extension-quickstart.md
+**/tsconfig.json
+**/.eslintrc.json
+**/*.map
+**/*.ts
+!dist/**/*.js
+test_*.v
+test-formatter.js
+check_case_ends.js
+mccu_test_formatted_io.v
+mccu_test.v
+module_multiline port.v
+module_multiline_formatted.v
+test_assign_alignment.js
+test_formatter.js
+test_mccu_io_check.js
+test_mccu_section.js
+node_modules/**
+*.vsix

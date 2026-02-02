@@ -1,0 +1,171 @@
+{
+  "name": "verigood-verilog-formatter",
+  "displayName": "VeriGood - Verilog Formatter",
+  "description": "Verilog/SystemVerilog formatter with granular control over formatting features.",
+  "version": "1.5.0",
+  "publisher": "FabioOliveira",
+  "icon": "icon.png",
+  "author": {
+    "name": "fabiodao"
+  },
+  "homepage": "https://github.com/fabioo-synopsys/verilog-formatter#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fabioo-synopsys/verilog-formatter.git"
+  },
+  "bugs": {
+    "url": "https://github.com/fabioo-synopsys/verilog-formatter/issues"
+  },
+  "license": "MIT",
+  "keywords": [
+    "verilog",
+    "systemverilog",
+    "formatter",
+    "beautifier",
+    "hdl",
+    "hardware",
+    "rtl",
+    "fpga",
+    "asic",
+    "code-formatter",
+    "verilog-formatter",
+    "systemverilog-formatter"
+  ],
+  "engines": {
+    "vscode": "^1.105.0"
+  },
+  "categories": [
+    "Formatters",
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:verilog",
+    "onLanguage:systemverilog"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "verilog",
+        "extensions": [
+          ".v",
+          ".vh"
+        ],
+        "aliases": [
+          "Verilog"
+        ]
+      },
+      {
+        "id": "systemverilog",
+        "extensions": [
+          ".sv",
+          ".svh"
+        ],
+        "aliases": [
+          "SystemVerilog"
+        ]
+      }
+    ],
+    "configuration": {
+      "title": "Verilog Formatter",
+      "properties": {
+        "verilogFormatter.indentSize": {
+          "type": "number",
+          "default": 2,
+          "description": "Spaces per indent level. Defaults to your workspace tab size if not explicitly set."
+        },
+        "verilogFormatter.maxBlankLines": {
+          "type": "number",
+          "default": 1,
+          "description": "Max consecutive blank lines."
+        },
+        "verilogFormatter.alignPortList": {
+          "type": "boolean",
+          "default": true,
+          "description": "Align ports."
+        },
+        "verilogFormatter.alignParameters": {
+          "type": "boolean",
+          "default": true,
+          "description": "Align parameter in module headers."
+        },
+        "verilogFormatter.wrapPortList": {
+          "type": "boolean",
+          "default": true,
+          "description": "Wrap long port lists exceeding line length."
+        },
+        "verilogFormatter.lineLength": {
+          "type": "number",
+          "default": 160,
+          "description": "Maximum line length (guideline 160)."
+        },
+        "verilogFormatter.removeTrailingWhitespace": {
+          "type": "boolean",
+          "default": true,
+          "description": "Strip trailing whitespace."
+        },
+        "verilogFormatter.alignAssignments": {
+          "type": "boolean",
+          "default": true,
+          "description": "Align contiguous assign groups."
+        },
+        "verilogFormatter.alignWireDeclSemicolons": {
+          "type": "boolean",
+          "default": true,
+          "description": "Align wire declaration groups."
+        },
+        "verilogFormatter.commentColumn": {
+          "type": "number",
+          "default": 0,
+          "description": "If >0 align trailing // comments starting at this column."
+        },
+        "verilogFormatter.formatModuleInstantiations": {
+          "type": "boolean",
+          "default": true,
+          "description": "Format module instantiations with aligned ports and parameters."
+        },
+        "verilogFormatter.formatModuleHeaders": {
+          "type": "boolean",
+          "default": true,
+          "description": "Format module headers with aligned ports and parameters."
+        },
+        "verilogFormatter.indentAlwaysBlocks": {
+          "type": "boolean",
+          "default": true,
+          "description": "Properly indent content inside always and initial blocks."
+        },
+        "verilogFormatter.enforceBeginEnd": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enforce begin/end blocks for if/else/for statements."
+        },
+        "verilogFormatter.indentCaseStatements": {
+          "type": "boolean",
+          "default": true,
+          "description": "Properly indent case statements and case items."
+        },
+        "verilogFormatter.annotateIfdefComments": {
+          "type": "boolean",
+          "default": true,
+          "description": "Add comments to `else and `endif directives."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p .",
+    "watch": "tsc -w -p .",
+    "test:generate": "npm run compile && node tests/generate_expected.js",
+    "test": "npm run compile && node tests/run_tests.js",
+    "prepackage": "npm test",
+    "package": "vsce package",
+    "prepublish": "npm test",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "@types/vscode": "^1.105.0",
+    "typescript": "^5.4.0"
+  }
+}
