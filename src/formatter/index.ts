@@ -276,7 +276,7 @@ function normalizeIfdefIndentation(lines: string[]): string[] {
  * Formats a Verilog/SystemVerilog document
  */
 export function formatDocument(document: vscode.TextDocument, options: vscode.FormattingOptions): vscode.TextEdit[] {
-  const cfg = getConfig();
+  const cfg = getConfig(options);  // Pass options to get editor's tabSize
   const original = document.getText();
 
   // Check if any formatting feature is enabled

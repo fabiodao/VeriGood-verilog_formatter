@@ -9,7 +9,7 @@ const testConfig = {
   '03_always_blocks.v': { indentAlwaysBlocks: true },
   '04_case_statements.v': { indentAlwaysBlocks: true },
   '05_multiline_conditions.v': { indentAlwaysBlocks: true },
-  '06_assignments.v': { indentAlwaysBlocks: false },
+  '06_assignments.v': { indentAlwaysBlocks: true },
   '07_wire_reg_declarations.v': { indentAlwaysBlocks: false },
   '08_parameters_ports.v': { indentAlwaysBlocks: false },
   '09_comments_edge_cases.v': { indentAlwaysBlocks: true },
@@ -29,7 +29,7 @@ files.forEach(file => {
   try {
     const config = testConfig[file] || { indentAlwaysBlocks: false };
     const indentAlways = config.indentAlwaysBlocks;
-    
+
     // Mock vscode with appropriate settings for this test
     const originalRequire = Module.prototype.require;
     Module.prototype.require = function(id) {
@@ -53,8 +53,13 @@ files.forEach(file => {
       return originalRequire.apply(this, arguments);
     };
 
-    // Clear cache and load formatter with new mock
-    delete require.cache[require.resolve('../dist/formatter/index')];
+    // Clear all formatter-related cache
+    Object.keys(require.cache).forEach(key => {
+      if (key.includes('formatter')) {
+        delete require.cache[key];
+      }
+    });
+
     const { formatVerilogText } = require('../dist/formatter/index');
 
     const inputPath = path.join(inputDir, file);
@@ -67,8 +72,13 @@ files.forEach(file => {
     console.log(`✓ Generated: ${file} (${setting})`);
     generated++;
 
-    // Restore require
+    // Restore require and clear cache again
     Module.prototype.require = originalRequire;
+    Object.keys(require.cache).forEach(key => {
+      if (key.includes('formatter')) {
+        delete require.cache[key];
+      }
+    });
   } catch (error) {
     console.error(`✗ Error generating ${file}:`, error.message);
   }

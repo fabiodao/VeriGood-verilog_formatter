@@ -25,24 +25,21 @@ export function formatRange(
     selectedLines.push(document.lineAt(i).text);
   }
 
-  // Use tabSize from FormattingOptions (reflects current editor setting from bottom bar)
-  const workspaceTabSize = options.tabSize || 2;
-
   // Get configuration
   const wcfg = vscode.workspace.getConfiguration('verilogFormatter');
-  // Check if user has explicitly set indentSize (not just using default)
-  const indentInspect = wcfg.inspect<number>('indentSize');
-  let indentSize = workspaceTabSize;
 
-  // Use explicitly set value (workspace, workspace folder, or global)
-  if (indentInspect?.workspaceFolderValue !== undefined) {
-    indentSize = indentInspect.workspaceFolderValue;
-  } else if (indentInspect?.workspaceValue !== undefined) {
-    indentSize = indentInspect.workspaceValue;
-  } else if (indentInspect?.globalValue !== undefined) {
-    indentSize = indentInspect.globalValue;
+  // Get indentSize: use configured value if explicitly set, otherwise use editor's tabSize from status bar
+  let indentSize: number;
+  const indentInspect = wcfg.inspect<number>('indentSize');
+  if (indentInspect && (indentInspect.workspaceValue !== undefined ||
+      indentInspect.globalValue !== undefined ||
+      indentInspect.workspaceFolderValue !== undefined)) {
+    // User has explicitly set indentSize, use it
+    indentSize = wcfg.get<number>('indentSize', 2);
+  } else {
+    // Not explicitly set, use editor's tabSize from status bar
+    indentSize = options.tabSize !== undefined ? options.tabSize : 2;
   }
-  // Otherwise use workspace tabSize (already set above)
 
   const cfg: Config = {
     indentSize: indentSize,
@@ -272,14 +269,13 @@ function hasCompleteStructure(lines: string[], startKeyword: string, beginKeywor
 
     // Check for start keyword (e.g., always, for, case)
     const startRegex = new RegExp(`^(${startKeyword})\\b`);
-    if (startRegex.test(trimmed)) {
+    const hasStartOnThisLine = startRegex.test(trimmed);
+
+    if (hasStartOnThisLine) {
       hasStart = true;
-      if (beginKeyword && trimmed.includes(beginKeyword)) {
-        depth++;
-      }
     }
 
-    // Check for begin
+    // Check for begin (count it only once per line, even if combined with start keyword)
     if (beginKeyword && /\bbegin\b/.test(trimmed)) {
       depth++;
     }

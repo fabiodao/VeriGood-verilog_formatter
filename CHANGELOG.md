@@ -2,6 +2,11 @@
 
 All notable changes to the "Verilog Guidelines Formatter" extension will be documented in this file.
 
+## [1.6.1] - 2026-02-03
+
+### Fixed
+- Fixed range formatting (format selection) not working for always blocks and case statements
+
 ## [1.6.0] - 2026-02-03
 
 ### Fixed

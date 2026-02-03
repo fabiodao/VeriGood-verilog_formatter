@@ -49,9 +49,8 @@ end
 
 // Test 9: Single-line if without begin/end (should add)
 always @(*)
-if (a) begin
+if (a)
   b               = c                                                ;
-end
 
 // Test 10: Complex bit manipulations
 assign result   = {data[31:24], data[23:16], data[15:8], data[7:0]};

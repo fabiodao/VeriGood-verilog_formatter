@@ -24,11 +24,26 @@ export interface Config {
 
 /**
  * Retrieves configuration from VS Code settings
+ * @param options Optional formatting options from VS Code (includes editor tabSize)
  */
-export function getConfig(): Config {
+export function getConfig(options?: vscode.FormattingOptions): Config {
   const wcfg = vscode.workspace.getConfiguration('verilogFormatter');
+  
+  // Get indentSize from config, or use editor's tabSize if not explicitly set
+  let indentSize: number;
+  const configuredIndentSize = wcfg.inspect<number>('indentSize');
+  if (configuredIndentSize && (configuredIndentSize.workspaceValue !== undefined || 
+      configuredIndentSize.globalValue !== undefined || 
+      configuredIndentSize.workspaceFolderValue !== undefined)) {
+    // User has explicitly set indentSize, use it
+    indentSize = wcfg.get<number>('indentSize', 2);
+  } else {
+    // Not explicitly set, use editor's tabSize from status bar
+    indentSize = options?.tabSize !== undefined ? options.tabSize : 2;
+  }
+  
   return {
-    indentSize: wcfg.get<number>('indentSize', 2),
+    indentSize,
     maxBlankLines: wcfg.get<number>('maxBlankLines', 1),
     alignPortList: wcfg.get<boolean>('alignPortList', true),
     alignParameters: wcfg.get<boolean>('alignParameters', true),
