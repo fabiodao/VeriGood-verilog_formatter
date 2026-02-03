@@ -3,68 +3,20 @@ const fs = require('fs');
 const path = require('path');
 const Module = require('module');
 
-// Mock vscode module
-const originalRequire = Module.prototype.require;
-Module.prototype.require = function(id) {
-  if (id === 'vscode') {
-    const Position = class {
-      constructor(line, character) {
-        this.line = line;
-        this.character = character;
-      }
-    };
-
-    const Range = class {
-      constructor(start, end) {
-        this.start = start;
-        this.end = end;
-      }
-    };
-
-    return {
-      workspace: {
-        getConfiguration: () => ({
-          get: (k, d) => ({
-            indentAlwaysBlocks: true,
-            enforceBeginEnd: true,
-            indentCaseStatements: true,
-            formatModuleHeaders: true,
-            formatModuleInstantiations: true,
-            alignAssignments: true,
-            alignWireDeclSemicolons: true,
-            alignParameters: true,
-            alignPortList: true,
-            annotateIfdefComments: true,
-            removeTrailingWhitespace: true,
-            maxBlankLines: 1
-          })[k] !== undefined ? ({
-            indentAlwaysBlocks: true,
-            enforceBeginEnd: true,
-            indentCaseStatements: true,
-            formatModuleHeaders: true,
-            formatModuleInstantiations: true,
-            alignAssignments: true,
-            alignWireDeclSemicolons: true,
-            alignParameters: true,
-            alignPortList: true,
-            annotateIfdefComments: true,
-            removeTrailingWhitespace: true,
-            maxBlankLines: 1
-          })[k] : d,
-          inspect: () => ({})
-        })
-      },
-      TextEdit: {
-        replace: (range, text) => ({ range, newText: text })
-      },
-      Position: Position,
-      Range: Range
-    };
-  }
-  return originalRequire.apply(this, arguments);
+// Test configuration - which tests need which settings
+const testConfig = {
+  '01_module_declarations.v': { indentAlwaysBlocks: false },
+  '02_module_instantiations.v': { indentAlwaysBlocks: false },
+  '03_always_blocks.v': { indentAlwaysBlocks: true },
+  '04_case_statements.v': { indentAlwaysBlocks: true },
+  '05_multiline_conditions.v': { indentAlwaysBlocks: true },
+  '06_assignments.v': { indentAlwaysBlocks: false },
+  '07_wire_reg_declarations.v': { indentAlwaysBlocks: false },
+  '08_parameters_ports.v': { indentAlwaysBlocks: false },
+  '09_comments_edge_cases.v': { indentAlwaysBlocks: true },
+  '10_parameter_alignment.v': { indentAlwaysBlocks: false },
+  '11_nested_ifdefs.v': { indentAlwaysBlocks: false }
 };
-
-const { formatVerilogText } = require('../dist/formatter/index');
 
 const inputDir = path.join(__dirname, 'inputs');
 const expectedDir = path.join(__dirname, 'expected');
@@ -97,9 +49,42 @@ files.forEach(file => {
       return;
     }
 
+    const config = testConfig[file] || { indentAlwaysBlocks: false };
+    const indentAlways = config.indentAlwaysBlocks;
+
+    // Mock vscode with appropriate settings for this test
+    const originalRequire = Module.prototype.require;
+    Module.prototype.require = function(id) {
+      if (id === 'vscode') {
+        return {
+          workspace: {
+            getConfiguration: () => ({
+              get: (k, d) => {
+                if (k === 'indentAlwaysBlocks') return indentAlways;
+                if (k === 'formatModuleInstantiations') return true;
+                return d;
+              },
+              inspect: () => ({})
+            })
+          },
+          TextEdit: { replace: (r, t) => ({ range: r, newText: t }) },
+          Position: class { constructor(l, c) { this.line = l; this.character = c; } },
+          Range: class { constructor(s, e) { this.start = s; this.end = e; } }
+        };
+      }
+      return originalRequire.apply(this, arguments);
+    };
+
+    // Clear cache and load formatter with new mock
+    delete require.cache[require.resolve('../dist/formatter/index')];
+    const { formatVerilogText } = require('../dist/formatter/index');
+
     const input = fs.readFileSync(inputPath, 'utf8');
     const expected = fs.readFileSync(expectedPath, 'utf8');
     const actual = formatVerilogText(input, 2);
+
+    // Restore require
+    Module.prototype.require = originalRequire;
 
     if (actual === expected) {
       console.log(`✓ PASS: ${testName}`);
@@ -117,75 +102,56 @@ files.forEach(file => {
   } catch (error) {
     console.log(`✗ ERROR: ${testName} - ${error.message}`);
     failed++;
-    failures.push({
-      file,
-      testName,
-      error: error.message
-    });
   }
 });
 
-console.log('\n' + '='.repeat(60));
+console.log(`\n============================================================`);
 console.log(`Total:  ${files.length} tests`);
 console.log(`Passed: ${passed} ✓`);
 console.log(`Failed: ${failed} ✗`);
-console.log('='.repeat(60));
+console.log(`============================================================`);
 
-// Show detailed failure information
-if (failures.length > 0) {
-  console.log('\n╔════════════════════════════════════════════════════════════╗');
-  console.log('║                      FAILURE DETAILS                       ║');
-  console.log('╚════════════════════════════════════════════════════════════╝\n');
+if (failed > 0) {
+  console.log(`\n╔════════════════════════════════════════════════════════════╗`);
+  console.log(`║                      FAILURE DETAILS                       ║`);
+  console.log(`╚════════════════════════════════════════════════════════════╝\n`);
 
-  failures.forEach((failure, idx) => {
-    console.log(`\n[${idx + 1}] ${failure.testName} (${failure.file})`);
-    console.log('-'.repeat(60));
+  failures.forEach((failure, index) => {
+    console.log(`\n[${index + 1}] ${failure.testName} (${failure.file})`);
+    console.log(`------------------------------------------------------------`);
 
-    if (failure.error) {
-      console.log(`Error: ${failure.error}`);
-    } else {
-      // Show first difference
-      const actualLines = failure.actual.split('\n');
-      const expectedLines = failure.expected.split('\n');
-      const maxLines = Math.max(actualLines.length, expectedLines.length);
+    const expectedLines = failure.expected.split('\n');
+    const actualLines = failure.actual.split('\n');
 
-      let firstDiff = -1;
-      for (let i = 0; i < maxLines; i++) {
-        if (actualLines[i] !== expectedLines[i]) {
-          firstDiff = i;
-          break;
-        }
+    let firstDiff = -1;
+    for (let i = 0; i < Math.max(expectedLines.length, actualLines.length); i++) {
+      if (expectedLines[i] !== actualLines[i]) {
+        firstDiff = i;
+        break;
       }
+    }
 
-      if (firstDiff >= 0) {
-        console.log(`First difference at line ${firstDiff + 1}:`);
-        console.log(`  Expected: "${expectedLines[firstDiff] || '(empty)'}"`);
-        console.log(`  Actual:   "${actualLines[firstDiff] || '(empty)'}"`);
+    if (firstDiff >= 0) {
+      console.log(`First difference at line ${firstDiff + 1}:`);
+      console.log(`  Expected: "${expectedLines[firstDiff] || ''}"`);
+      console.log(`  Actual:   "${actualLines[firstDiff] || ''}"`);
 
-        // Show context
-        const contextStart = Math.max(0, firstDiff - 2);
-        const contextEnd = Math.min(maxLines, firstDiff + 3);
-        console.log(`\nContext (lines ${contextStart + 1}-${contextEnd}):`);
-        for (let i = contextStart; i < contextEnd; i++) {
-          const marker = i === firstDiff ? '>' : ' ';
-          const expected = (expectedLines[i] || '').replace(/\t/g, '→');
-          const actual = (actualLines[i] || '').replace(/\t/g, '→');
-          if (i === firstDiff) {
-            console.log(`  ${marker} E[${i + 1}]: "${expected}"`);
-            console.log(`  ${marker} A[${i + 1}]: "${actual}"`);
-          }
-        }
+      const start = Math.max(0, firstDiff - 2);
+      const end = Math.min(expectedLines.length, firstDiff + 3);
+      console.log(`\nContext (lines ${start + 1}-${end + 1}):`);
+      for (let i = start; i < end; i++) {
+        const marker = i === firstDiff ? '>' : ' ';
+        console.log(`  ${marker} E[${i + 1}]: "${expectedLines[i] || ''}"`);
+        console.log(`  ${marker} A[${i + 1}]: "${actualLines[i] || ''}"`);
       }
     }
   });
 
-  console.log('\n' + '='.repeat(60));
-  console.log('To update expected outputs: npm run test:generate');
-  console.log('To view full diff: check tests/outputs/ directory');
-  console.log('='.repeat(60) + '\n');
-
+  console.log(`\n============================================================`);
+  console.log(`To update expected outputs: npm run test:generate`);
+  console.log(`To view full diff: check tests/outputs/ directory`);
+  console.log(`============================================================\n`);
   process.exit(1);
 } else {
-  console.log('\n🎉 All tests passed! Extension is ready for publish.\n');
-  process.exit(0);
+  console.log(`\n🎉 All tests passed! Extension is ready for publish.\n`);
 }

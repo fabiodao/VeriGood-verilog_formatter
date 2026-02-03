@@ -254,7 +254,7 @@ See [tests/QUICK_START.md](tests/QUICK_START.md) for quick reference or [tests/R
 
 ## Contributing
 
-Issues and pull requests are welcome on [GitHub](https://github.com/fabioo-synopsys/verilog-formatter).
+Issues and pull requests are welcome on [GitHub](https://github.com/fabiodao/VeriGood-verilog_formatter).
 
 ## License
 

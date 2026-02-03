@@ -1,6 +1,6 @@
 /**
  * Module instantiation formatting module
- * 
+ *
  * Formats module instantiations (both parameterized and simple)
  */
 

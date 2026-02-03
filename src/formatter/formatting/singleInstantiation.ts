@@ -1,6 +1,6 @@
 /**
  * Single instantiation formatting helper
- * 
+ *
  * Formats a single module instantiation (handles parameters and ports)
  */
 
@@ -207,8 +207,8 @@ export function formatSingleInstantiation(lines: string[], baseIndent: string, u
 
             // Check the first line for the first value
             const firstLine = multilineLines[0].trim();
-            // Match signal, numeric literal, or expression in parentheses
-            const firstLineMatch = firstLine.match(/^\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\{\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\[[^\]]+\])?|\d+'\w+\d+|\([^)]+\))\s*[,}]/);
+            // Match signal, numeric literal (including hex like 4'hf), or expression in parentheses
+            const firstLineMatch = firstLine.match(/^\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\{\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\[[^\]]+\])?|\d+'\w+[\da-fA-F_]+|\([^)]+\))\s*[,}]/);
             if (firstLineMatch && firstLineMatch[2].length > paramMaxSignalLen) {
               paramMaxSignalLen = firstLineMatch[2].length;
             }
@@ -218,8 +218,8 @@ export function formatSingleInstantiation(lines: string[], baseIndent: string, u
               const trimmed = origLine.trim();
               if (trimmed.startsWith('`') || trimmed.startsWith('//')) continue;
 
-              // Match signal, numeric literal, or expression in parentheses
-              const signalMatch = trimmed.match(/^([a-zA-Z_][a-zA-Z0-9_]*(?:\[[^\]]+\])?|\d+'\w+\d+|\([^)]+\))\s*[,}]/);
+              // Match signal, numeric literal (including hex like 4'hf), or expression in parentheses
+              const signalMatch = trimmed.match(/^([a-zA-Z_][a-zA-Z0-9_]*(?:\[[^\]]+\])?|\d+'\w+[\da-fA-F_]+|\([^)]+\))\s*[,}]/);
               if (signalMatch && signalMatch[1].length > paramMaxSignalLen) {
                 paramMaxSignalLen = signalMatch[1].length;
               }
@@ -397,7 +397,7 @@ export function formatSingleInstantiation(lines: string[], baseIndent: string, u
 
             // Check the first line for the first signal
             const firstLine = multilineLines[0].trim();
-            const firstLineMatch = firstLine.match(/^\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\{\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\[[^\]]+\])?|\d+'\w+\d+)\s*[,}]/);
+            const firstLineMatch = firstLine.match(/^\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\{\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\[[^\]]+\])?|\d+'\w+[\da-fA-F_]+)\s*[,}]/);
             if (firstLineMatch && firstLineMatch[2].length > portMaxSignalLen) {
               portMaxSignalLen = firstLineMatch[2].length;
             }
@@ -405,7 +405,7 @@ export function formatSingleInstantiation(lines: string[], baseIndent: string, u
             if (firstLineContinuedMatch && firstLineContinuedMatch[2].length > portMaxSignalLen) {
               portMaxSignalLen = firstLineContinuedMatch[2].length;
             }
-            const nestedFirstMatch = firstLine.match(/^\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\{(\{[^,}]+|[a-zA-Z_][a-zA-Z0-9_\[\]\-:]+|\d+'\w+\d+)\s*[,}]/);
+            const nestedFirstMatch = firstLine.match(/^\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\{(\{[^,}]+|[a-zA-Z_][a-zA-Z0-9_\[\]\-:]+|\d+'\w+[\da-fA-F_]+)\s*[,}]/);
             if (nestedFirstMatch && nestedFirstMatch[2].length > portMaxSignalLen) {
               portMaxSignalLen = nestedFirstMatch[2].length;
             }
@@ -415,11 +415,11 @@ export function formatSingleInstantiation(lines: string[], baseIndent: string, u
               const trimmed = origLine.trim();
               if (trimmed.startsWith('`') || trimmed.startsWith('//')) continue;
 
-              const signalMatch = trimmed.match(/^([a-zA-Z_][a-zA-Z0-9_]*(?:\[[^\]]+\])?|\d+'\w+\d+)\s*[,}]/);
+              const signalMatch = trimmed.match(/^([a-zA-Z_][a-zA-Z0-9_]*(?:\[[^\]]+\])?|\d+'\w+[\da-fA-F_]+)\s*[,}]/);
               if (signalMatch && signalMatch[1].length > portMaxSignalLen) {
                 portMaxSignalLen = signalMatch[1].length;
               }
-              const commaLeftMatch = trimmed.match(/^,\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\[[^\]]+\])?|\d+'\w+\d+)(?:\s*,|\s*$)?/);
+              const commaLeftMatch = trimmed.match(/^,\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\[[^\]]+\])?|\d+'\w+[\da-fA-F_]+)(?:\s*,|\s*$)?/);
               if (commaLeftMatch && commaLeftMatch[1].length > portMaxSignalLen) {
                 portMaxSignalLen = commaLeftMatch[1].length;
               }
@@ -520,7 +520,9 @@ export function formatSingleInstantiation(lines: string[], baseIndent: string, u
             // Extract just the content after the opening paren
             const contentMatch = firstLineTrimmed.match(/\((.+)$/);
             if (contentMatch) {
-              const firstLineContent = contentMatch[1].trim();
+              let firstLineContent = contentMatch[1].trim();
+              // Strip inline comments
+              firstLineContent = firstLineContent.replace(/\/\/.*$/, '').trim();
               // Skip if it's a directive
               if (!firstLineContent.startsWith('`')) {
                 if (firstLineContent.length > globalMaxParamContentLen) {
@@ -544,8 +546,8 @@ export function formatSingleInstantiation(lines: string[], baseIndent: string, u
             }
 
             if (isConcatenation) {
-              // For concatenations, track signal name length (including numeric literals like 8'd0 and array indices like signal[0])
-              const signalMatch = trimmed.match(/^([a-zA-Z_][a-zA-Z0-9_]*(?:\[[^\]]+\])?|\d+'\w+\d+)\s*[,}]/);
+              // For concatenations, track signal name length (including numeric literals like 8'd0, 4'hf and array indices like signal[0])
+              const signalMatch = trimmed.match(/^([a-zA-Z_][a-zA-Z0-9_]*(?:\[[^\]]+\])?|\d+'\w+[\da-fA-F_]+)\s*[,}]/);
               if (signalMatch && signalMatch[1].length > globalMaxParamSignalLen) {
                 globalMaxParamSignalLen = signalMatch[1].length;
               }
@@ -566,8 +568,11 @@ export function formatSingleInstantiation(lines: string[], baseIndent: string, u
               }
             } else {
               // For expressions, track actual content length
-              // Strip closing paren/comma before measuring
+              // Strip comments first, then closing paren/comma before measuring
               let content = trimmed;
+              // Remove inline comments (//...)
+              content = content.replace(/\/\/.*$/, '').trim();
+              // Remove closing paren/comma
               content = content.replace(/\s*\)\s*,?\s*$/, '').trim();
               const contentLen = content.length;
               if (contentLen > globalMaxParamContentLen) {
@@ -586,11 +591,17 @@ export function formatSingleInstantiation(lines: string[], baseIndent: string, u
     }
 
     // Calculate unified closing parenthesis column for parameters
-    // Based on the longest actual content
+    // All closing `)` should be at the same column
+    // For concatenations: continuationIndent + maxSignalLen + 1 (for }), then ) is next position
+    // continuationIndent = (baseIndent + unit).length + 1 + maxParamPort + 3 (for " ({")
+    // So ) is at: (baseIndent + unit).length + 1 + maxParamPort + 3 + maxSignalLen + 1
     const paramContentIndent = (baseIndent + unit).length + 1 + maxParamPort + 2; // Position where content starts: "." + name + " ("
-    // For concatenations: add 1 for '{', for others just use content length
-    const maxConcatLen = globalMaxParamSignalLen > 0 ? globalMaxParamSignalLen + 1 : 0; // +1 for '{'
-    const paramClosingParenCol = paramContentIndent + Math.max(maxParamConn, maxConcatLen, globalMaxParamContentLen);
+    const paramConcatContinuationIndent = (baseIndent + unit).length + 1 + maxParamPort + 3; // For concatenations: "." + name + " ({"
+    const paramClosingParenCol = Math.max(
+      paramContentIndent + maxParamConn,  // Single-line parameters
+      paramConcatContinuationIndent + (globalMaxParamSignalLen > 0 ? globalMaxParamSignalLen + 1 : 0),  // Multiline concatenations (+1 for })
+      paramContentIndent + globalMaxParamContentLen  // Multiline expressions
+    );
 
     // Parameters - Two-pass approach for comment alignment
     // First pass: Build parameter lines without comments and collect comment info
@@ -615,7 +626,7 @@ export function formatSingleInstantiation(lines: string[], baseIndent: string, u
           const portPadded = p.port.padEnd(maxParamPort);
           let paramContinuationIndent = ' '.repeat((baseIndent + unit).length + 1 + maxParamPort + 2); // Default: align with " ("
           let isConcatenation = false;
-          const paramMaxSignalLen = p.maxSignalLen; // Use per-parameter max signal length
+          const paramMaxSignalLen = p.maxSignalLen; // Use per-parameter max signal length (like ports do)
 
           for (let lineIdx = 0; lineIdx < p.originalLines.length; lineIdx++) {
             const origLine = p.originalLines[lineIdx];
@@ -660,20 +671,24 @@ export function formatSingleInstantiation(lines: string[], baseIndent: string, u
               // First line: check what type of parameter this is
               const trimmedWithoutComment = lineWithoutComment.trim();
 
-              // Type 1: Concatenation pattern ".PARAM ({value ," (value can be signal name, array index, numeric literal, or expression in parentheses)
-              const concatMatch = trimmedWithoutComment.match(/^\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\{\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\[[^\]]+\])?|\d+'\w+\d+|\([^)]+\))\s*(.*)$/);
+              // Type 1: Concatenation pattern ".PARAM ({value ," (value can be signal name, array index, numeric literal like 4'hf, or expression in parentheses)
+              const concatMatch = trimmedWithoutComment.match(/^\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\{\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\[[^\]]+\])?|\d+'\w+[\da-fA-F_]+|\([^)]+\))\s*(.*)$/);
               if (concatMatch) {
                 isConcatenation = true;
-                paramContinuationIndent = ' '.repeat((baseIndent + unit).length + 1 + maxParamPort + 2); // +2 for "({"
+                paramContinuationIndent = ' '.repeat((baseIndent + unit).length + 1 + maxParamPort + 3); // +3 for " ({" to position after the {
                 const paramName = concatMatch[1];
                 const firstValue = concatMatch[2];
                 const remainder = concatMatch[3].trim();
                 const paramPadded = paramName.padEnd(maxParamPort);
                 let formattedRemainder = remainder;
                 if (remainder.startsWith(',')) {
-                  // Subtract 1 because continuation lines with { have that { included in their length,
-                  // but the first line doesn't have { as part of the value (it's part of the opening ({)
-                  const spacesBeforeComma = Math.max(0, paramMaxSignalLen - firstValue.length - 1);
+                  // For first line: value is after ({, continuation lines start at column 13 with {value
+                  // To align commas, we need to add padding so the comma aligns with continuation lines
+                  // Continuation lines: column 13 + {value + padding = comma at column 36
+                  // First line: after ({ + value + padding should also put comma at same column
+                  // Since continuation indent is now at column 13 (after {), and continuation values include {,
+                  // we don't subtract 1 anymore
+                  const spacesBeforeComma = Math.max(0, paramMaxSignalLen - firstValue.length);
                   const padding = spacesBeforeComma > 0 ? ' '.repeat(spacesBeforeComma) : '';
                   formattedRemainder = padding + remainder;
                 }
@@ -703,36 +718,60 @@ export function formatSingleInstantiation(lines: string[], baseIndent: string, u
             } else if (/^\/\//.test(origTrimmed)) {
               // Comment lines
               paramLineInfos.push({ line: paramContinuationIndent + origTrimmed, comment: '', isMultiline: true, lineIndex: lineIdx });
-            } else if (/}\s*\),?$/.test(origTrimmed)) {
-              // Closing line like "value })," or "value})" or standalone "})"
+            } else if (/}\s*\),?$/.test(lineWithoutComment.trim())) {
+              // Closing line like "value })," or "{replication} })," or "value})" or standalone "})"
               // Handle this BEFORE general value matching
-              const closingMatch = lineWithoutComment.trim().match(/^([a-zA-Z_][a-zA-Z0-9_]*(?:\[[^\]]+\])?|\d+'\w+\d+)(\s*.*)$/);
-              if (closingMatch) {
-                const valueName = closingMatch[1];
-                const fullRemainder = closingMatch[2];
-                const hasComma = fullRemainder.trimEnd().endsWith(',');
-                const closingStr = hasComma ? '}),' : '})';
-                // Align ) to paramClosingParenCol
-                // First align the value's comma, then position }), similar to signal lines
-                const spacesBeforeClosing = paramMaxSignalLen - valueName.length;
-                const padding = spacesBeforeClosing > 0 ? ' '.repeat(spacesBeforeClosing) : '';
-                // Then calculate padding to align ) at paramClosingParenCol
-                const braceCol = paramContinuationIndent.length + valueName.length + padding.length; // position of }
-                const parenPadding = Math.max(0, paramClosingParenCol - braceCol - 1); // -1 for }
-                const baseLine = paramContinuationIndent + valueName + padding + '}' + ' '.repeat(parenPadding) + ')' + (hasComma ? ',' : '');
+              const trimmedWithoutComment = lineWithoutComment.trim();
+              const hasComma = trimmedWithoutComment.endsWith(',');
+
+              // Try to match simple value (signal name or numeric literal)
+              const simpleValueMatch = trimmedWithoutComment.match(/^([a-zA-Z_][a-zA-Z0-9_]*(?:\[[^\]]+\])?|\d+'\w+[\da-fA-F_]+)\s*}+\s*\)?/);
+              if (simpleValueMatch) {
+                const valueName = simpleValueMatch[1];
+                // MIMIC PORT LOGIC: Step 1 - Align } at paramMaxSignalLen position (where commas are)
+                const bracePaddingNeeded = Math.max(0, paramMaxSignalLen - valueName.length);
+                const bracePadding = bracePaddingNeeded > 0 ? ' '.repeat(bracePaddingNeeded) : '';
+
+                // MIMIC PORT LOGIC: Step 2 - Add padding after } to align ) at paramClosingParenCol
+                const closingBraces = '}';
+                const positionAfterBrace = paramContinuationIndent.length + valueName.length + bracePadding.length + closingBraces.length;
+                const parenPaddingNeeded = Math.max(0, paramClosingParenCol - positionAfterBrace);
+                const parenPadding = parenPaddingNeeded > 0 ? ' '.repeat(parenPaddingNeeded) : '';
+
+                const baseLine = paramContinuationIndent + valueName + bracePadding + closingBraces + parenPadding + ')' + (hasComma ? ',' : '');
                 paramLineInfos.push({ line: baseLine, comment: lineComment, isMultiline: true, lineIndex: lineIdx });
               } else {
-                // Standalone closing "})," or "})" - align } at comma position, ) at closing paren position
-                const trimmed = lineWithoutComment.trim();
-                const hasComma = trimmed.endsWith(',');
-                const closingStr = hasComma ? '}),' : '})';
+                // Try to match replication pattern like {COUNT{signal}}
+                const replicationMatch = trimmedWithoutComment.match(/^(\{[^}]+\{[^}]+\}\})\s*}+\s*\)?/);
+                if (replicationMatch) {
+                  const replicationExpr = replicationMatch[1];
+                  // MIMIC PORT LOGIC: Step 1 - Align } at paramMaxSignalLen position
+                  const bracePaddingNeeded = Math.max(0, paramMaxSignalLen - replicationExpr.length);
+                  const bracePadding = bracePaddingNeeded > 0 ? ' '.repeat(bracePaddingNeeded) : '';
 
-                // Calculate padding: } should be at paramMaxSignalLen position
-                // Position calculation: paramContinuationIndent + padding + }
-                const bracePadding = Math.max(0, paramMaxSignalLen);
-                const parenPadding = Math.max(0, paramClosingParenCol - paramContinuationIndent.length - bracePadding - 1); // -1 for }
-                const baseLine = paramContinuationIndent + ' '.repeat(bracePadding) + '}' + ' '.repeat(parenPadding) + ')' + (hasComma ? ',' : '');
-                paramLineInfos.push({ line: baseLine, comment: lineComment, isMultiline: true, lineIndex: lineIdx });
+                  // MIMIC PORT LOGIC: Step 2 - Add padding after } to align ) at paramClosingParenCol
+                  const closingBraces = '}';
+                  const positionAfterBrace = paramContinuationIndent.length + replicationExpr.length + bracePadding.length + closingBraces.length;
+                  const parenPaddingNeeded = Math.max(0, paramClosingParenCol - positionAfterBrace);
+                  const parenPadding = parenPaddingNeeded > 0 ? ' '.repeat(parenPaddingNeeded) : '';
+
+                  const baseLine = paramContinuationIndent + replicationExpr + bracePadding + closingBraces + parenPadding + ')' + (hasComma ? ',' : '');
+                  paramLineInfos.push({ line: baseLine, comment: lineComment, isMultiline: true, lineIndex: lineIdx });
+                } else {
+                  // Standalone closing "})," or "})" - MIMIC PORT LOGIC
+                  const closingBraces = '}';
+                  // Step 1: Align } at paramMaxSignalLen position
+                  const bracePaddingNeeded = Math.max(0, paramMaxSignalLen - closingBraces.length);
+                  const bracePadding = bracePaddingNeeded > 0 ? ' '.repeat(bracePaddingNeeded) : '';
+
+                  // Step 2: Add padding after } to align ) at paramClosingParenCol
+                  const positionAfterBrace = paramContinuationIndent.length + bracePadding.length + closingBraces.length;
+                  const parenPaddingNeeded = Math.max(0, paramClosingParenCol - positionAfterBrace);
+                  const parenPadding = parenPaddingNeeded > 0 ? ' '.repeat(parenPaddingNeeded) : '';
+
+                  const baseLine = paramContinuationIndent + bracePadding + closingBraces + parenPadding + ')' + (hasComma ? ',' : '');
+                  paramLineInfos.push({ line: baseLine, comment: lineComment, isMultiline: true, lineIndex: lineIdx });
+                }
               }
             } else {
               // Continuation lines - different handling based on content
@@ -752,8 +791,8 @@ export function formatSingleInstantiation(lines: string[], baseIndent: string, u
                 paramLineInfos.push({ line: baseLine, comment: lineComment, isMultiline: true, lineIndex: lineIdx });
               } else {
               // PRIORITY 2: Check if this is a signal name, numeric literal, or expression in a concatenation (followed by comma or closing brace)
-              // Match: signal_name, signal_name[index], numeric literals like 8'd0, or expressions in parentheses like (A-1)
-              const signalMatch = trimmedWithoutComment.match(/^([a-zA-Z_][a-zA-Z0-9_]*(?:\[[^\]]+\])?|\d+'\w+\d+|\([^)]+\))\s*(.*)$/);
+              // Match: signal_name, signal_name[index], numeric literals like 8'd0 or 4'hf, or expressions in parentheses like (A-1)
+              const signalMatch = trimmedWithoutComment.match(/^([a-zA-Z_][a-zA-Z0-9_]*(?:\[[^\]]+\])?|\d+'\w+[\da-fA-F_]+|\([^)]+\))\s*(.*)$/);
               if (signalMatch) {
                 const signalName = signalMatch[1];
                 const remainder = signalMatch[2].trim();
@@ -1029,8 +1068,8 @@ export function formatSingleInstantiation(lines: string[], baseIndent: string, u
             result.push(closingLine);
           } else if (lineIdx === 0) {
             // First line: ".idata ({Monitor_mccu ," - align opening ( with single-line ports
-            // Try to match simple signal, array index, or numeric literal first: .portname ({signalname , or .portname ({signal[0] , or .portname ({8'd0 ,
-            const firstLineMatch = origTrimmed.match(/^\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\{\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\[[^\]]+\])?|\d+'\w+\d+)\s*(.*)$/);
+            // Try to match simple signal, array index, or numeric literal first: .portname ({signalname , or .portname ({signal[0] , or .portname ({8'd0 , or .portname ({4'hf ,
+            const firstLineMatch = origTrimmed.match(/^\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\{\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\[[^\]]+\])?|\d+'\w+[\da-fA-F_]+)\s*(.*)$/);
             if (firstLineMatch) {
               const portName = firstLineMatch[1];
               const firstSignal = firstLineMatch[2];
@@ -1045,7 +1084,7 @@ export function formatSingleInstantiation(lines: string[], baseIndent: string, u
               result.push(portIndent + '.' + portPadded + ' ({' + firstSignal + formattedRemainder);
             } else {
               // Try to match replication or nested concatenation: .portname ({{COUNT{signal}} or .portname ({{signal[bit] or .portname ({8'd0
-              const replicationFirstMatch = origTrimmed.match(/^\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\{(\{\{?[^,}]+\{[^}]+\}\}|[a-zA-Z_][a-zA-Z0-9_\[\]\-:]+|\d+'\w+\d+)\s*(.*)$/);
+              const replicationFirstMatch = origTrimmed.match(/^\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\{(\{\{?[^,}]+\{[^}]+\}\}|[a-zA-Z_][a-zA-Z0-9_\[\]\-:]+|\d+'\w+[\da-fA-F_]+)\s*(.*)$/);
               if (replicationFirstMatch) {
                 const portName = replicationFirstMatch[1];
                 const firstExpr = replicationFirstMatch[2]; // e.g., "{{COUNT{signal}}" or "{signal[bit]"
@@ -1135,8 +1174,8 @@ export function formatSingleInstantiation(lines: string[], baseIndent: string, u
               }
             }
           } else {
-            // Signal lines: align commas (includes signal names, array indices, and numeric literals)
-            const signalMatch = origTrimmed.match(/^([a-zA-Z_][a-zA-Z0-9_]*(?:\[[^\]]+\])?|\d+'\w+\d+)\s*(.*)$/);
+            // Signal lines: align commas (includes signal names, array indices, and numeric literals like 4'hf)
+            const signalMatch = origTrimmed.match(/^([a-zA-Z_][a-zA-Z0-9_]*(?:\[[^\]]+\])?|\d+'\w+[\da-fA-F_]+)\s*(.*)$/);
             if (signalMatch) {
               const signalName = signalMatch[1];
               const remainder = signalMatch[2].trim();

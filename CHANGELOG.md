@@ -2,6 +2,19 @@
 
 All notable changes to the "Verilog Guidelines Formatter" extension will be documented in this file.
 
+## [1.6.0] - 2026-02-03
+
+### Fixed
+- Fixed module instantiation parameter alignment - all closing parentheses now align consistently
+- Fixed multiline concatenation formatting in parameters to match port behavior
+- Fixed comma alignment in concatenations
+- Inline comments no longer affect alignment calculations
+
+### Improved
+- Enhanced test suite with 11 comprehensive test categories (72+ test cases)
+- Added nested ifdef/ifndef test coverage
+- Cleaned up project structure and documentation
+
 ## [1.5.0] - 2026-02-02
 
 ### Added

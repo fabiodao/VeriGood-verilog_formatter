@@ -2,7 +2,7 @@
   "name": "verigood-verilog-formatter",
   "displayName": "VeriGood - Verilog Formatter",
   "description": "Verilog/SystemVerilog formatter with granular control over formatting features.",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "publisher": "FabioOliveira",
   "icon": "icon.png",
   "author": {

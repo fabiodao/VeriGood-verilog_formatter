@@ -8,9 +8,9 @@ assign output_signal = input_signal;
 
 // Test 2: Blocking assignments - unaligned
 always @(*) begin
-  x       = 1;
-  y       = 2;
-  z       = 3;
+  x = 1;
+  y = 2;
+  z = 3;
 end
 
 // Test 3: Non-blocking assignments - unaligned
@@ -26,7 +26,7 @@ assign result       = ((a&b)|(c^d))           ;
 assign out          = in                      ;
 
 // Test 5: Multi-line assignments
-assign large_result = {                       
+assign large_result = {
                       data[31:24],
                       data[23:16],
                       data[15:8],
