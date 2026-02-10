@@ -2,6 +2,12 @@
 
 All notable changes to the "Verilog Guidelines Formatter" extension will be documented in this file.
 
+## [1.6.3] - 2026-02-03
+
+### Fixed
+- Fixed module instantiation formatting not working when indentAlwaysBlocks is enabled but file has no always blocks
+- Fixed range formatting not applying to module instantiations
+
 ## [1.6.1] - 2026-02-03
 
 ### Fixed

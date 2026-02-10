@@ -667,8 +667,13 @@ export function formatDocument(document: vscode.TextDocument, options: vscode.Fo
   // Fix invalid "end if" patterns
   const withFixedEndIf = cfg.enforceBeginEnd ? fixEndIfPattern(withBeginMoved) : withBeginMoved;
 
+  // Detect if file has always/initial blocks
+  const hasAlwaysBlocks = withFixedEndIf.some(line => 
+    /^\s*(always|initial)\b/.test(line)
+  );
+
   // Indent always blocks (conditional) - must run BEFORE alignMultilineConditions
-  const withAlways = cfg.indentAlwaysBlocks
+  const withAlways = cfg.indentAlwaysBlocks && hasAlwaysBlocks
     ? indentAlwaysBlocks(withFixedEndIf, cfg.indentSize)
     : withFixedEndIf;
 
@@ -700,7 +705,8 @@ export function formatDocument(document: vscode.TextDocument, options: vscode.Fo
   }
 
   // Format module instantiations (conditional)
-  const withInstantiations = (cfg.formatModuleInstantiations && !cfg.indentAlwaysBlocks)
+  // Only skip if both: cfg.indentAlwaysBlocks is enabled AND file actually has always blocks
+  const withInstantiations = (cfg.formatModuleInstantiations && !(cfg.indentAlwaysBlocks && hasAlwaysBlocks))
     ? formatModuleInstantiations(controlBlocks, cfg.indentSize)
     : controlBlocks;
 

@@ -2,19 +2,19 @@
   "name": "verigood-verilog-formatter",
   "displayName": "VeriGood - Verilog Formatter",
   "description": "Verilog/SystemVerilog formatter with granular control over formatting features.",
-  "version": "1.6.1",
+  "version": "1.6.3",
   "publisher": "FabioOliveira",
   "icon": "icon.png",
   "author": {
     "name": "fabiodao"
   },
-  "homepage": "https://github.com/fabioo-synopsys/verilog-formatter#readme",
+  "homepage": "https://github.com/fabiodao/VeriGood-verilog_formatter#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/fabioo-synopsys/verilog-formatter.git"
+    "url": "https://github.com/fabiodao/VeriGood-verilog_formatter.git"
   },
   "bugs": {
-    "url": "https://github.com/fabioo-synopsys/verilog-formatter/issues"
+    "url": "https://github.com/fabiodao/VeriGood-verilog_formatter/issues"
   },
   "license": "MIT",
   "keywords": [

@@ -92,10 +92,16 @@ function formatVerilogRange(
   const hasCompleteForBlock = hasCompleteStructure(result, 'for', 'begin', 'end');
   const hasCompleteCaseBlock = hasCompleteStructure(result, 'case|casez|casex', '', 'endcase');
   const hasCompleteIfBlock = hasCompleteIfElseStructure(result);
+  
+  // Check if we have a complete module instantiation (starts with module_name instance_name( and ends with );)
+  const firstLine = result[0]?.trim() || '';
+  const lastLine = result[result.length - 1]?.trim() || '';
+  const hasCompleteInstantiation = /^[A-Za-z_][A-Za-z0-9_]*\s+([#\s]+\(|[A-Za-z_][A-Za-z0-9_]*\s*\()/.test(firstLine) && 
+                                   /\);?\s*$/.test(lastLine);
 
-  // If we have complete structural blocks, apply full formatting including indentation
+  // If we have complete structural blocks OR complete instantiation, apply full formatting including indentation
   if (hasCompleteAlwaysBlock || hasCompleteInitialBlock || hasCompleteGenerateBlock ||
-      hasCompleteForBlock || hasCompleteCaseBlock || hasCompleteIfBlock) {
+      hasCompleteForBlock || hasCompleteCaseBlock || hasCompleteIfBlock || hasCompleteInstantiation) {
     // Create a minimal document with just these lines to pass through full formatter
     const tempText = result.join('\n');
     const formattedText = formatDocumentFn(tempText, indentSize);
@@ -246,7 +252,11 @@ function formatVerilogRange(
     }
 
     // 11. Format module instantiations if requested (only if not module header and has actual instantiation structure)
-    if (cfg.formatModuleInstantiations && hasModuleInst && !hasModuleHeader && !hasOnlyConnections) {
+    // Check if the selection actually has always blocks
+    const hasAlwaysInRange = result.some(line => /^\s*(always|initial)\b/.test(line));
+    const shouldFormatInst = cfg.formatModuleInstantiations && hasModuleInst && !hasModuleHeader && !hasOnlyConnections && !(cfg.indentAlwaysBlocks && hasAlwaysInRange);
+    
+    if (shouldFormatInst) {
       try {
         result = formatModuleInstantiations(result, indentSize);
       } catch (e) {
