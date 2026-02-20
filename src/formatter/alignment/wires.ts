@@ -8,7 +8,7 @@ import { Config } from '../types';
 
 export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
   // Enhanced: comments and macro directives inside a declaration block do NOT break alignment; they pass through.
-  interface DeclRow { indent: string; keyword: string; typeKeyword: string; range: string; name: string; initLines: string[]; hasInit: boolean; comment: string; originalLines: string[]; isMultiNames: boolean; namesList: string; isPassthrough: boolean; }
+  interface DeclRow { indent: string; keyword: string; typeKeyword: string; range: string; name: string; unpackedDim: string; initLines: string[]; hasInit: boolean; comment: string; originalLines: string[]; isMultiNames: boolean; namesList: string; isPassthrough: boolean; }
 
   function isDeclStart(l: string): boolean { return /^\s*(wire|reg|logic|input|output|inout|integer)\b/.test(l); }
   function isMacro(l: string): boolean { return /^\s*`(ifn?def|else|endif)\b/.test(l); }
@@ -47,31 +47,42 @@ export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
     const indent = (first.match(/^\s*/)?.[0]) || ''; // Preserve original indent
     const isPass = isComment(first) || isMacro(first) || !isDeclStart(first);
     if (isPass) {
-      return { indent, keyword: '', typeKeyword: '', range: '', name: '', initLines: [], hasInit: false, comment: '', originalLines: block, isMultiNames: false, namesList: '', isPassthrough: true };
+      return { indent, keyword: '', typeKeyword: '', range: '', name: '', unpackedDim: '', initLines: [], hasInit: false, comment: '', originalLines: block, isMultiNames: false, namesList: '', isPassthrough: true };
     }
     const commentMatchLast = block[block.length - 1].match(/(.*?)(\/\/.*)$/);
     const endComment = commentMatchLast ? commentMatchLast[2].replace(/\/\/\s?/, '// ').trim() : '';
     const bodyFirst = first.replace(/(\/\/.*)$/, '').trim();
-    // Match: (input|output|inout|integer)? (wire|reg|logic)? [range]? name
+    // Match: (input|output|inout|integer)? (wire|reg|logic)? (signed|unsigned)? [range]? name
     // Note: integer is a standalone type without range
-    const declMatch = bodyFirst.match(/^(input|output|inout|wire|reg|logic|integer)\s*(?:(wire|reg|logic)\s*)?(\[[^\]]+\])?\s*(.*)$/);
+    const declMatch = bodyFirst.match(/^(input|output|inout|wire|reg|logic|integer)\s*(?:(wire|reg|logic)\s*)?(?:(signed|unsigned)\s*)?(\[[^\]]+\])?\s*(.*)$/);
     if (declMatch) {
       const firstKeyword = declMatch[1];
       const secondKeyword = declMatch[2] || '';
+      const signKeyword = declMatch[3] || '';
       // If first is input/output/inout, that's direction, second is type
       // If first is wire/reg/logic/integer and no second, that's type
       const keyword = /^(input|output|inout)$/.test(firstKeyword) ? firstKeyword : firstKeyword;
-      const typeKeyword = /^(input|output|inout)$/.test(firstKeyword) ? secondKeyword : '';
-      const range = declMatch[3] ? declMatch[3].trim() : '';
-      let remainder = declMatch[4].trim();
+      const typeKeyword = /^(input|output|inout)$/.test(firstKeyword) ? (secondKeyword + (signKeyword ? ' ' + signKeyword : '')) : signKeyword;
+      const range = declMatch[4] ? declMatch[4].trim() : '';
+      let remainder = declMatch[5].trim();
       // Check for initialization BEFORE checking for comma (comma might be in the init expression)
       const hasEquals = /\=/.test(remainder);
       if (!hasEquals && /,/.test(remainder)) {
         // Multi-name declaration (no equals sign, but has comma)
         const namesList = remainder.replace(/;\s*$/, '') + (block.length > 1 ? ' ' + block.slice(1, -1).map(b => b.trim()).join(' ') : '');
-        return { indent, keyword, typeKeyword, range, name: '', initLines: [], hasInit: false, comment: endComment, originalLines: block, isMultiNames: true, namesList: namesList.replace(/;\s*$/, ''), isPassthrough: false };
+        return { indent, keyword, typeKeyword, range, name: '', unpackedDim: '', initLines: [], hasInit: false, comment: endComment, originalLines: block, isMultiNames: true, namesList: namesList.replace(/;\s*$/, ''), isPassthrough: false };
       }
-      let name = remainder.replace(/;\s*$/, '').trim(); // Trim to remove any trailing spaces
+      let name = remainder.replace(/;\s*$/, '').trim();
+      let unpackedDim = '';
+      
+      // Extract unpacked dimension (second range) from name
+      // Keep the space before the unpacked dimension
+      const unpackedMatch = name.match(/^([A-Za-z_][A-Za-z0-9_$]*)(\s+\[.+\])$/);
+      if (unpackedMatch) {
+        name = unpackedMatch[1];
+        unpackedDim = unpackedMatch[2];
+      }
+      
       let initLines: string[] = [];
       let hasInit = false;
       if (hasEquals) {
@@ -109,9 +120,9 @@ export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
         }
       }
 
-      return { indent, keyword, typeKeyword, range, name, initLines, hasInit, comment: endComment, originalLines: block, isMultiNames: false, namesList: '', isPassthrough: false };
+      return { indent, keyword, typeKeyword, range, name, unpackedDim, initLines, hasInit, comment: endComment, originalLines: block, isMultiNames: false, namesList: '', isPassthrough: false };
     }
-    return { indent, keyword: '', typeKeyword: '', range: '', name: first.trim(), initLines: [], hasInit: false, comment: endComment, originalLines: block, isMultiNames: false, namesList: '', isPassthrough: true };
+    return { indent, keyword: '', typeKeyword: '', range: '', name: first.trim(), unpackedDim: '', initLines: [], hasInit: false, comment: endComment, originalLines: block, isMultiNames: false, namesList: '', isPassthrough: true };
   });
 
   const decls = rows.filter(r => r.keyword);
@@ -165,38 +176,38 @@ export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
   const maxRange = Math.max(0, ...decls.map(r => r.range.length));
   const maxNamesList = multiNameRows.length ? Math.max(...multiNameRows.map(r => r.namesList.length)) : 0;
 
-  // For declarations WITHOUT init, calculate their own max name width
+  // For declarations WITHOUT init, calculate their own max name width (including unpacked dimensions)
   const declsWithoutInit = singleRows.filter(r => !r.hasInit);
-  const maxSingleNameNoInit = declsWithoutInit.length ? Math.max(...declsWithoutInit.map(r => r.name.length)) : 0;
+  const maxSingleNameNoInit = declsWithoutInit.length ? Math.max(...declsWithoutInit.map(r => (r.name + r.unpackedDim).length)) : 0;
 
   const multiNamesLengths = multiNameRows.map(r => {
     const keywordCol = r.keyword.padEnd(maxKeyword);
     const typeKeywordCol = maxTypeKeyword ? r.typeKeyword.padEnd(maxTypeKeyword) : '';
     const rangeCol = maxRange ? r.range.padStart(maxRange) : '';
     const namesCol = r.namesList.padEnd(maxNamesList);
-    const segs = [keywordCol]; if (maxTypeKeyword) segs.push(typeKeywordCol); if (maxRange) segs.push(rangeCol); segs.push(namesCol);
+    const segs = [keywordCol]; if (r.typeKeyword) segs.push(typeKeywordCol); if (maxRange) segs.push(rangeCol); segs.push(namesCol);
     return segs.join(' ').length;
   });
   const noInitLengths = declsWithoutInit.map(r => {
     const keywordCol = r.keyword.padEnd(maxKeyword);
     const typeKeywordCol = maxTypeKeyword ? r.typeKeyword.padEnd(maxTypeKeyword) : '';
     const rangeCol = maxRange ? r.range.padStart(maxRange) : '';
-    const nameCol = r.name.padEnd(maxSingleNameNoInit);
-    const segs = [keywordCol]; if (maxTypeKeyword) segs.push(typeKeywordCol); if (maxRange) segs.push(rangeCol); segs.push(nameCol);
+    const nameCol = (r.name + r.unpackedDim).padEnd(maxSingleNameNoInit);
+    const segs = [keywordCol]; if (r.typeKeyword) segs.push(typeKeywordCol); if (maxRange) segs.push(rangeCol); segs.push(nameCol);
     return segs.join(' ').length;
   });
   const maxBodyLenNoInit = [...multiNamesLengths, ...noInitLengths].length ? Math.max(...[...multiNamesLengths, ...noInitLengths]) : 0;
 
-  // For declarations WITH init, calculate their own max name width and align the '=' sign
+  // For declarations WITH init, calculate their own max name width (including unpacked dimensions) and align the '=' sign
   const declsWithInit = singleRows.filter(r => r.hasInit);
-  const maxSingleNameWithInit = declsWithInit.length ? Math.max(...declsWithInit.map(r => r.name.length)) : 0;
+  const maxSingleNameWithInit = declsWithInit.length ? Math.max(...declsWithInit.map(r => (r.name + r.unpackedDim).length)) : 0;
 
   const maxDeclBeforeEquals = declsWithInit.length ? Math.max(...declsWithInit.map(r => {
     const keywordCol = r.keyword.padEnd(maxKeyword);
     const typeKeywordCol = maxTypeKeyword ? r.typeKeyword.padEnd(maxTypeKeyword) : '';
     const rangeCol = maxRange ? r.range.padStart(maxRange) : '';
-    const nameCol = r.name.padEnd(maxSingleNameWithInit);
-    const segs = [keywordCol]; if (maxTypeKeyword) segs.push(typeKeywordCol); if (maxRange) segs.push(rangeCol); segs.push(nameCol);
+    const nameCol = (r.name + r.unpackedDim).padEnd(maxSingleNameWithInit);
+    const segs = [keywordCol]; if (r.typeKeyword) segs.push(typeKeywordCol); if (maxRange) segs.push(rangeCol); segs.push(nameCol);
     return segs.join(' ').length;
   })) : 0;
 
@@ -210,13 +221,19 @@ export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
 
     if (r.isMultiNames) {
       const namesCol = r.namesList.trim();
-      const segs = [keywordCol]; if (maxTypeKeyword) segs.push(typeKeywordCol); if (rangeCol) segs.push(rangeCol); segs.push(namesCol);
+      const segs = [keywordCol]; 
+      if (r.typeKeyword) segs.push(typeKeywordCol); // Only add if this row has typeKeyword
+      if (maxRange) segs.push(rangeCol); // Always add if maxRange > 0
+      segs.push(namesCol);
       const pos = r.indent.length + segs.join(' ').length;
       // Exclude if adding semicolon would exceed line length
       return (pos + 1 + (r.comment ? r.comment.length + 1 : 0) <= cfg.lineLength) ? pos : 0;
     } else {
-      const nameCol = r.name.trim();
-      const segs = [keywordCol]; if (maxTypeKeyword) segs.push(typeKeywordCol); if (rangeCol) segs.push(rangeCol); segs.push(nameCol);
+      const nameCol = r.name + r.unpackedDim;
+      const segs = [keywordCol]; 
+      if (r.typeKeyword) segs.push(typeKeywordCol); // Only add if this row has typeKeyword
+      if (maxRange) segs.push(rangeCol); // Always add if maxRange > 0
+      segs.push(nameCol);
       let baseDecl = segs.join(' ');
       if (r.hasInit) {
         // For init declarations, include only single-line inits in semicolon alignment
@@ -230,6 +247,7 @@ export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
           return 0;
         }
       } else {
+        // For non-init declarations, use the actual length without name padding
         const pos = r.indent.length + baseDecl.length;
         // Exclude if adding semicolon would exceed line length
         return (pos + 1 + (r.comment ? r.comment.length + 1 : 0) <= cfg.lineLength) ? pos : 0;
@@ -248,7 +266,10 @@ export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
 
     if (r.isMultiNames) {
       const expectedNamesCol = r.namesList.trim();
-      const segs = [expectedKeywordCol]; if (maxTypeKeyword) segs.push(expectedTypeKeywordCol); if (expectedRangeCol) segs.push(expectedRangeCol); segs.push(expectedNamesCol);
+      const segs = [expectedKeywordCol]; 
+      if (r.typeKeyword) segs.push(expectedTypeKeywordCol); 
+      if (maxRange) segs.push(expectedRangeCol); // Always add if maxRange > 0
+      segs.push(expectedNamesCol);
       const lineBeforeSemi = r.indent + segs.join(' ');
       const padding = ' '.repeat(Math.max(0, maxSemicolonPos - lineBeforeSemi.length));
       const expectedLine = lineBeforeSemi + padding + ';' + (r.comment ? ' ' + r.comment : '');
@@ -257,8 +278,11 @@ export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
         break;
       }
     } else {
-      const expectedNameCol = r.name.trim();
-      const segs = [expectedKeywordCol]; if (maxTypeKeyword) segs.push(expectedTypeKeywordCol); if (expectedRangeCol) segs.push(expectedRangeCol); segs.push(expectedNameCol);
+      const expectedNameCol = r.name + r.unpackedDim;
+      const segs = [expectedKeywordCol]; 
+      if (r.typeKeyword) segs.push(expectedTypeKeywordCol); 
+      if (maxRange) segs.push(expectedRangeCol); // Always add if maxRange > 0
+      segs.push(expectedNameCol);
       let baseDecl = segs.join(' ');
 
       if (r.hasInit) {
@@ -331,7 +355,10 @@ export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
     const rangeCol = maxRange ? r.range.padStart(maxRange) : '';
     if (r.isMultiNames) {
       const namesCol = r.namesList.trim();
-      const segs = [keywordCol]; if (maxTypeKeyword) segs.push(typeKeywordCol); if (rangeCol) segs.push(rangeCol); segs.push(namesCol);
+      const segs = [keywordCol]; 
+      if (r.typeKeyword) segs.push(typeKeywordCol); 
+      if (maxRange) segs.push(rangeCol); // Always add if maxRange > 0, even if empty
+      segs.push(namesCol);
       const lineBeforeSemi = r.indent + segs.join(' ');
       const wouldExceedLimit = (lineBeforeSemi.length + 1 + (r.comment ? r.comment.length + 1 : 0)) > cfg.lineLength;
       if (wouldExceedLimit) {
@@ -341,8 +368,11 @@ export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
         out.push(lineBeforeSemi + padding + ';' + (r.comment ? ' ' + r.comment : ''));
       }
     } else {
-      const nameCol = r.name.trim();
-      const segs = [keywordCol]; if (maxTypeKeyword) segs.push(typeKeywordCol); if (rangeCol) segs.push(rangeCol); segs.push(nameCol);
+      const nameCol = r.name + r.unpackedDim;
+      const segs = [keywordCol]; 
+      if (r.typeKeyword) segs.push(typeKeywordCol); 
+      if (maxRange) segs.push(rangeCol); // Always add if maxRange > 0, even if empty
+      segs.push(nameCol);
       let baseDecl = segs.join(' ');
       if (r.hasInit) {
         // Align '=' sign like assign statements: pad base to max, then add ' = value'

@@ -6,7 +6,7 @@ always @(*) begin
   if (signal_a &&
       signal_b &&
       signal_c) begin
-    result  = 1;
+    result = 1;
   end
 end
 
@@ -15,7 +15,7 @@ always @(*) begin
   if ((a > b) &&
       (c < d) ||
       (e == f)) begin
-    result  = 1;
+    result = 1;
   end
 end
 
@@ -93,8 +93,8 @@ end
 
 // Test 10: Multi-line ternary assignment
 assign result = (condition_a &&
-condition_b) ?
-value_true :
-value_false;
+                 condition_b) ?
+                 value_true :
+                 value_false;
 
 endmodule

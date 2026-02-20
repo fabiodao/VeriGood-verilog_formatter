@@ -15,6 +15,7 @@ import { alignAssignmentGroup } from './alignment/assignments';
 import { alignWireDeclGroup } from './alignment/wires';
 import { alignParameterLines } from './alignment/parameters';
 import { alignPortDeclLines } from './alignment/ports';
+import { alignBlockAssignments } from './alignment/blockAssignments';
 
 // Import formatting modules
 import { formatModuleHeader } from './formatting/moduleHeader';
@@ -416,6 +417,7 @@ export function formatDocument(document: vscode.TextDocument, options: vscode.Fo
 
   let moduleBodyActive = false;
   let functionDepth = 0;
+  let alwaysDepth = 0;
 
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i];
@@ -471,9 +473,11 @@ export function formatDocument(document: vscode.TextDocument, options: vscode.Fo
         flushParams();
       }
       if (pendingWireDecls.length && !inWireContinuation) {
+        // Blank lines and comments don't break wire declaration groups
+        // Only flush for IO declarations after many non-decl lines
         const firstPendingIsIO = /^\s*(input|output|inout)\b/.test(pendingWireDecls[0].text);
         wireGroupNonDeclCount++;
-        if (!firstPendingIsIO && wireGroupNonDeclCount > 3) {
+        if (firstPendingIsIO && wireGroupNonDeclCount > 3) {
           flushWireDecls();
           wireGroupNonDeclCount = 0;
         } else {
@@ -501,6 +505,18 @@ export function formatDocument(document: vscode.TextDocument, options: vscode.Fo
       flushWireDecls();
       functionDepth--;
       if (functionDepth < 0) functionDepth = 0;
+    }
+    
+    // Track always/initial block depth
+    if (/^\s*\b(always|initial)\b/.test(line)) {
+      alwaysDepth++;
+    }
+    // Track begin/end for always blocks
+    if (alwaysDepth > 0) {
+      const beginCount = (line.match(/\bbegin\b/g) || []).length;
+      const endCount = (line.match(/\bend\b/g) || []).length;
+      alwaysDepth += beginCount - endCount;
+      if (alwaysDepth < 0) alwaysDepth = 0;
     }
 
     // Handle multi-line wire/reg/logic declaration continuation
@@ -540,14 +556,9 @@ export function formatDocument(document: vscode.TextDocument, options: vscode.Fo
     } else if (pendingWireDecls.length && !inWireContinuation) {
       const firstPendingIsIO = /^\s*(input|output|inout)\b/.test(pendingWireDecls[0].text);
       if (/^\s*\/\//.test(line) || /^\s*`(ifn?def|else|endif)\b/.test(line)) {
-        wireGroupNonDeclCount++;
-        if (!firstPendingIsIO && wireGroupNonDeclCount > 3) {
-          flushWireDecls();
-          wireGroupNonDeclCount = 0;
-        } else {
-          pendingWireDecls.push({ idx: i, text: line });
-          continue;
-        }
+        // Comments and macros don't break the group, just include them
+        pendingWireDecls.push({ idx: i, text: line });
+        continue;
       } else {
         const isParam = /^\s*(parameter|localparam)\b/.test(line);
         if (!firstPendingIsIO || isParam) {
@@ -629,7 +640,7 @@ export function formatDocument(document: vscode.TextDocument, options: vscode.Fo
     }
 
     // Generic non-blocking/blocking assignments
-    const genericAssignStart = cfg.alignAssignments && /^(.*?)\s*(<=|=)(?![=]).*;\s*(\/\/.*)?$/.test(line) && !/^\s*(wire|reg|logic|input|output|inout)\b/.test(line);
+    const genericAssignStart = cfg.alignAssignments && alwaysDepth === 0 && /^(.*?)\s*(<=|=)(?![=]).*;\s*(\/\/.*)?$/.test(line) && !/^\s*(wire|reg|logic|input|output|inout)\b/.test(line);
     if (genericAssignStart) {
       pendingAssignments.push({ idx: i, text: line });
       continue;
@@ -640,9 +651,11 @@ export function formatDocument(document: vscode.TextDocument, options: vscode.Fo
       if (/^\s*\/\//.test(line) || /^\s*`(ifn?def|else|endif)\b/.test(line)) {
         pendingAssignments.push({ idx: i, text: line });
         continue;
-      } else {
+      } else if (!/^\s*assign\b/.test(line)) {
+        // Not a comment, not an assign → flush
         flushAssignments();
       }
+      // If it's an assign, don't flush - let it be added to the group below
     }
 
     // Apply comment column alignment
@@ -715,10 +728,15 @@ export function formatDocument(document: vscode.TextDocument, options: vscode.Fo
     ? indentCaseStatements(withInstantiations, cfg.indentSize)
     : withInstantiations;
 
+  // Align assignments within case items and blocks (conditional)
+  const withBlockAlignment = (cfg.indentCaseStatements || cfg.indentAlwaysBlocks)
+    ? alignBlockAssignments(withCaseIndent, cfg)
+    : withCaseIndent;
+
   // Normalize ifdef directive indentation
   const finalLines = cfg.indentAlwaysBlocks
-    ? withCaseIndent
-    : normalizeIfdefIndentation(withCaseIndent);
+    ? withBlockAlignment
+    : normalizeIfdefIndentation(withBlockAlignment);
 
   // Remove trailing blank lines while preserving original end-of-file newline behavior
   while (finalLines.length > 0 && finalLines[finalLines.length - 1].trim() === '') {

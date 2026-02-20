@@ -4,9 +4,9 @@ module test_cases;
 // Test 1: Simple case statement - unformatted
 always @(*) begin
   case (state)
-    2'b00: output   = 0;
-    2'b01: output   = 1;
-    2'b10: output   = 2;
+    2'b00  : output = 0;
+    2'b01  : output = 1;
+    2'b10  : output = 2;
     default: output = 3;
   endcase
 end
@@ -45,9 +45,9 @@ end
 // Test 4: Case with comments
 always @(*) begin
   case (state)
-    IDLE:    next = WAIT; // Go to wait
-    WAIT:    next = RUN ; // Start running
-    RUN:     next = IDLE; // Return to idle
+    IDLE   : next = WAIT; // Go to wait
+    WAIT   : next = RUN ; // Start running
+    RUN    : next = IDLE; // Return to idle
     default: next = IDLE;
   endcase
 end
@@ -56,7 +56,7 @@ end
 always @(*) begin
   if (enable) begin
     case (cmd)
-      READ: data_out   = mem[addr];
+      READ : data_out  = mem[addr];
       WRITE: mem[addr] = data_in  ;
     endcase
   end

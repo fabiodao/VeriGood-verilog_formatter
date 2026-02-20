@@ -12,8 +12,8 @@ endmodule
 
 // Test 3: Module with parameters - unformatted
 module with_params #(
-  parameter WIDTH=8  ,
-  parameter DEPTH =16
+  parameter WIDTH = 8 ,
+  parameter DEPTH = 16
   )
   (
   input              clk ,
@@ -41,11 +41,11 @@ endmodule
 // Test 5: Module with multi-line parameter values
 module multiline_param_value #(
   parameter INIT_VALUE = {
-32'h00000000,
-32'hFFFFFFFF,
-32'hAAAAAAAA
-},
-  parameter DEPTH = 8
+                          32'h00000000,
+                          32'hFFFFFFFF,
+                          32'hAAAAAAAA
+                         },
+  parameter DEPTH      = 8
   )
   (
   input clk
@@ -56,10 +56,10 @@ endmodule
 // Test 6: Module with comments in parameters
 module commented_params #(
   parameter WIDTH = 8 , // Data width
-  parameter DEPTH = 16 // FIFO depth
+  parameter DEPTH = 16  // FIFO depth
   )
   (
-  input clk  // Clock input
+  input clk // Clock input
   );
 
 endmodule

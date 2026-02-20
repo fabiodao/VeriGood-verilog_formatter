@@ -25,11 +25,11 @@ always @(posedge clk) begin
     case (mode)
       0: begin
         if (sub_enable) begin
-          data    <= 1;
+          data <= 1;
         end
       end
       1: begin
-        data    <= 2;
+        data <= 2;
       end
     endcase
   end
@@ -49,8 +49,8 @@ end
 
 // Test 9: Single-line if without begin/end (should add)
 always @(*)
-if (a)
-  b               = c                                                ;
+  if (a)
+    b = c;
 
 // Test 10: Complex bit manipulations
 assign result   = {data[31:24], data[23:16], data[15:8], data[7:0]};

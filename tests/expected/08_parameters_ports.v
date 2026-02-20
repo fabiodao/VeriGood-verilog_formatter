@@ -1,9 +1,9 @@
 module test_params_ports #(
   // Test 1: Parameter declarations - unaligned
-  parameter WIDTH=8   ,
-  parameter DEPTH=16  ,
-  parameter INIT_VAL=0,
-  parameter MODE=1
+  parameter WIDTH    = 8 ,
+  parameter DEPTH    = 16,
+  parameter INIT_VAL = 0 ,
+  parameter MODE     = 1
   )
   (
   // Test 2: Port declarations - unaligned
@@ -11,7 +11,7 @@ module test_params_ports #(
   input                  rst_n   ,
   input      [WIDTH-1:0] data_in ,
   output reg [WIDTH-1:0] data_out,
-  output                 valid   
+  output                 valid
   );
 
 
@@ -28,7 +28,7 @@ endmodule
 
 // Test 4: Module with parameter and localparam mixed
 module mixed_params (
-  parameter WIDTH=8
+  parameter WIDTH = 8
   );
 
   localparam HALF_WIDTH   = WIDTH/2;
@@ -41,7 +41,7 @@ module varied_ports (
   input  wire        rst_n,
   inout        [7:0] bidir,
   output reg         valid,
-  output wire [15:0] data 
+  output wire [15:0] data
   );
 
 endmodule

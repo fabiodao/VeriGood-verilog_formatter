@@ -214,7 +214,13 @@ export function indentCaseStatements(lines: string[], indentSize: number): strin
       if (isCaseItemWithBegin || isCaseItemSingleLine) {
         // Case item should be indented by one level from case
         caseInfo.inCaseItem = true;
-        result.push(caseInfo.caseItemIndent + trimmed);
+        // Normalize spacing around assignment operators (but not for for loops or assign statements)
+        let normalizedTrimmed = trimmed;
+        if (!/^\s*for\s*\(/.test(trimmed) && !/^\s*assign\b/.test(trimmed)) {
+          normalizedTrimmed = normalizedTrimmed.replace(/([^=!<>])\s*=\s*([^=])/g, '$1 = $2');
+          normalizedTrimmed = normalizedTrimmed.replace(/([^<])\s*<=\s*/g, '$1 <= ');
+        }
+        result.push(caseInfo.caseItemIndent + normalizedTrimmed);
 
         // If it has begin, next lines should be indented further
         if (/\bbegin\b/.test(trimmed) && !/\/\/.*\bbegin\b/.test(line)) {
@@ -336,7 +342,13 @@ export function indentCaseStatements(lines: string[], indentSize: number): strin
       // For regular content: use current indent from stack
       if (trimmed !== '') {
         const contentIndent = indentStack.length > 0 ? indentStack[indentStack.length - 1] : expectedContentIndent;
-        result.push(contentIndent + trimmed);
+        // Normalize spacing around assignment operators (but not for for loops or assign statements)
+        let normalizedTrimmed = trimmed;
+        if (!/^\s*for\s*\(/.test(trimmed) && !/^\s*assign\b/.test(trimmed)) {
+          normalizedTrimmed = normalizedTrimmed.replace(/([^=!<>])\s*=\s*([^=])/g, '$1 = $2');
+          normalizedTrimmed = normalizedTrimmed.replace(/([^<])\s*<=\s*/g, '$1 <= ');
+        }
+        result.push(contentIndent + normalizedTrimmed);
 
         // Check if this line has 'begin' - if so, push to indentStack
         // This handles cases like continuation lines of multi-line if that end with 'begin'

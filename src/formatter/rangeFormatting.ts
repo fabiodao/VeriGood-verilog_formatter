@@ -194,13 +194,17 @@ function formatVerilogRange(
       result = compressed;
     }
 
-    // 3. Detect module header
+    // 3. Detect module header (must have both module keyword and closing ); to be complete)
     let hasModuleHeader = false;
+    let hasCompleteModuleHeader = false;
     for (let i = 0; i < result.length; i++) {
       if (/^\s*module\s+\w+/.test(result[i])) {
         hasModuleHeader = true;
         break;
       }
+    }
+    if (hasModuleHeader && result.some(l => /\)\s*;\s*$/.test(l))) {
+      hasCompleteModuleHeader = true;
     }
 
     // 4. Detect module instantiation without module header
@@ -222,8 +226,8 @@ function formatVerilogRange(
     // 5. Align multiline conditions
     result = alignMultilineConditions(result);
 
-    // 6. Format module header if detected
-    if (cfg.formatModuleHeaders && hasModuleHeader) {
+    // 6. Format module header only if complete (has closing );)
+    if (cfg.formatModuleHeaders && hasCompleteModuleHeader) {
       try {
         result = formatModuleHeader(result, cfg);
       } catch (e) {
@@ -241,13 +245,15 @@ function formatVerilogRange(
       result = alignWireDeclarationsInRange(result);
     }
 
-    // 9. Align parameters if requested (only if not inside module header)
-    if (cfg.alignParameters && !hasModuleHeader) {
+    // 9. Align parameters if requested (only when not inside complete module header)
+    if (cfg.alignParameters && !hasCompleteModuleHeader) {
       result = alignParametersInRange(result);
     }
 
-    // 10. Align input/output port declarations if requested (only if not inside module header)
-    if (cfg.alignPortList && !hasModuleHeader) {
+    // 10. Align input/output port declarations - run when we have port lines but NOT a complete
+    //     module header (formatModuleHeader handles those). Enables formatting partial port lists.
+    const hasPortDeclarations = result.some(l => /^\s*(input|output|inout)\s+/.test(l));
+    if (cfg.alignPortList && (hasPortDeclarations && !hasCompleteModuleHeader)) {
       result = alignPortDeclarationsInRange(result);
     }
 
@@ -420,11 +426,11 @@ function alignWireDeclarationsInRange(lines: string[]): string[] {
   const maxRange = Math.max(...declLines.map(d => d.range.length));
   const maxName = Math.max(...declLines.map(d => d.name.length));
 
-  // Format
+  // Format (match module header: ranges use padStart so ] aligns)
   const result = [...lines];
   for (const decl of declLines) {
     const typePadded = decl.type.padEnd(maxType);
-    const rangePadded = decl.range ? decl.range.padEnd(maxRange) + ' ' : ''.padEnd(maxRange + 1);
+    const rangePadded = decl.range ? decl.range.padStart(maxRange) + ' ' : ''.padEnd(maxRange + 1);
     const namePadded = decl.name.padEnd(maxName);
     result[decl.index] = `${decl.indent}${typePadded} ${rangePadded}${namePadded}${decl.arrayDim}${decl.init};${decl.comment ? ' ' + decl.comment : ''}`;
   }
@@ -521,12 +527,12 @@ function alignPortDeclarationsInRange(lines: string[]): string[] {
   const maxRange = Math.max(...portLines.map(p => p.range.length));
   const maxName = Math.max(...portLines.map(p => p.name.length));
 
-  // Format
+  // Format (match module header: ranges use padStart so ] aligns)
   const result = [...lines];
   for (const port of portLines) {
     const dirPadded = port.dir.padEnd(maxDir);
     const typePadded = port.type ? port.type.padEnd(maxType) + ' ' : ''.padEnd(maxType + 1);
-    const rangePadded = port.range ? port.range.padEnd(maxRange) + ' ' : ''.padEnd(maxRange + 1);
+    const rangePadded = port.range ? port.range.padStart(maxRange) + ' ' : ''.padEnd(maxRange + 1);
     const namePadded = port.name.padEnd(maxName);
     result[port.index] = `${port.indent}${dirPadded} ${typePadded}${rangePadded}${namePadded}${port.delimiter}${port.comment ? ' ' + port.comment : ''}`;
   }

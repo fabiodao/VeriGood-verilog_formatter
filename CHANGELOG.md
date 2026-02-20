@@ -1,6 +1,21 @@
 # Change Log
 
-All notable changes to the "Verilog Guidelines Formatter" extension will be documented in this file.
+All notable changes to the extension will be documented in this file.
+
+## [1.7.0] - 2026-02-20
+
+### Fixed
+- Fixed module-level `assign` statement alignment to properly group across comments and blank lines
+- Fixed assignment alignment within `always` blocks, `case` items, and `if/else` structures
+- Fixed single-statement block indentation for nested `always`/`if`/`for` without begin/end
+- Fixed multi-line ternary assignment indentation to align with opening parenthesis
+- Fixed multi-line concatenation assignment to not add trailing spaces on opening line
+- Fixed operator spacing normalization stripping alignment padding from `assign` statements
+
+### Improved
+- Enhanced assignment alignment to respect "concurrent lines" rule across all block types
+- Improved single-statement depth tracking for properly nested indentation
+- Better handling of `always` blocks without begin/end keywords
 
 ## [1.6.3] - 2026-02-03
 

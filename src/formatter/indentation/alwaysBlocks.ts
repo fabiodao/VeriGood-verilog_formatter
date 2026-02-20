@@ -71,6 +71,7 @@ export function indentAlwaysBlocks(lines: string[], indentSize: number): string[
 
   // Second pass: perform normal indentation on merged lines
   let expectSingleStatement = false; // Track if next line should be indented for single-statement block
+  let singleStatementDepth = 0; // Track depth of nested single-statement blocks
 
   for (let i = 0; i < mergedLines.length; i++) {
     const line = mergedLines[i];
@@ -102,6 +103,9 @@ export function indentAlwaysBlocks(lines: string[], indentSize: number): string[
       // Check if this line also has 'begin' on it
       if (/\bbegin\b/.test(trimmed)) {
         beginEndStack.push('begin');
+      } else {
+        // No begin on same line - next non-empty line should be indented as single statement
+        expectSingleStatement = true;
       }
 
       result.push(line);
@@ -146,12 +150,29 @@ export function indentAlwaysBlocks(lines: string[], indentSize: number): string[
       const isFor = /^\s*for\s*\(/.test(trimmed);
 
       // SECOND: Calculate indentation based on CURRENT stack depth (after popping end)
-      let nestingLevel = beginEndStack.length;
+      let nestingLevel = beginEndStack.length + singleStatementDepth;
 
-      // If we're expecting a single statement (from previous if/else/for without begin), add one more level
-      if (expectSingleStatement && !isElse && !isIf && !isFor) {
+      // If we're NOT expecting a single statement but depth > 0, we've exited single-statement blocks
+      if (!expectSingleStatement && singleStatementDepth > 0) {
+        singleStatementDepth = 0;
+        nestingLevel = beginEndStack.length;
+        
+        // If we're in an always block without begin/end and all single statements are done, exit the always block
+        if (insideAlways && beginEndStack.length === 0) {
+          insideAlways = false;
+        }
+      }
+
+      // If we're expecting a single statement (from previous if/else/for/always without begin), add one more level
+      if (expectSingleStatement && !isElse) {
         nestingLevel++;
-        expectSingleStatement = false; // Reset after applying
+        // Increment single statement depth
+        singleStatementDepth++;
+        // Don't reset yet - if this is an if/for, it will set expectSingleStatement again
+        // Only reset for simple statements
+        if (!isIf && !isFor) {
+          expectSingleStatement = false;
+        }
       }
 
       // Else statements are at the same level as their if, which is the current stack depth
@@ -172,7 +193,16 @@ export function indentAlwaysBlocks(lines: string[], indentSize: number): string[
 
       // Format the line with the calculated indentation
       if (trimmed !== '') {
-        const newLine = currentLineIndent + trimmed;
+        // Normalize spacing around assignment operators (but not for for loops)
+        let normalizedTrimmed = trimmed;
+        if (!/^\s*for\s*\(/.test(trimmed) && !/^\s*assign\b/.test(trimmed)) {
+          // Add spaces around = (but not ==, !=, <=, >=, and not for assign statements)
+          normalizedTrimmed = normalizedTrimmed.replace(/([^=!<>])\s*=\s*([^=])/g, '$1 = $2');
+          // Add spaces around <= (but not <<=)
+          normalizedTrimmed = normalizedTrimmed.replace(/([^<])\s*<=\s*/g, '$1 <= ');
+        }
+        
+        const newLine = currentLineIndent + normalizedTrimmed;
         result.push(newLine);
         continue;
       }

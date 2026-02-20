@@ -107,7 +107,14 @@ export function formatModuleHeader(lines: string[], cfg: Config): string[] {
     const dirCol = maxDir ? (e.dir || '').padEnd(maxDir) : '';
     const typeCol = maxType ? (e.type || '').padEnd(maxType) : '';
     const rangeCol = maxRange ? (e.range || '').padStart(maxRange) : '';
-    const nameCol = (e.name || '');
+    let nameCol = (e.name || '');
+    
+    // Special handling for parameter declarations in port list (e.g., "parameter WIDTH=8")
+    // Add spaces around = sign
+    if (nameCol.includes('=') && nameCol.match(/^\s*parameter\s+/)) {
+      nameCol = nameCol.replace(/\s*=\s*/, ' = ');
+    }
+    
     const segments: string[] = [];
     if (maxDir) segments.push(dirCol);
     if (maxType) segments.push(typeCol);
@@ -122,9 +129,12 @@ export function formatModuleHeader(lines: string[], cfg: Config): string[] {
 
   // Second pass: pad base and add comma
   portEntries.forEach(e => {
-    const basePadded = e.content!.padEnd(maxBaseLength);
-    const commaChar = e.comma ? ',' : '';  // Don't add space for ports without comma
-    e.content = basePadded + commaChar;
+    // Only pad if there's a comma - avoid trailing spaces on last port
+    if (e.comma) {
+      const basePadded = e.content!.padEnd(maxBaseLength);
+      e.content = basePadded + ',';
+    }
+    // If no comma, keep base as-is (no padding to avoid trailing spaces)
   });
 
   // Third pass: add aligned comments
@@ -132,7 +142,9 @@ export function formatModuleHeader(lines: string[], cfg: Config): string[] {
   const commentAlignPos = maxBaseLength + 1;  // +1 for comma position
   portEntries.forEach(e => {
     if (e.comment) {
-      e.content = e.content!.padEnd(commentAlignPos) + ' ' + e.comment;
+      // Pad to comment position, accounting for whether there's a comma
+      const targetLen = e.comma ? commentAlignPos : commentAlignPos - 1;
+      e.content = e.content!.padEnd(targetLen) + ' ' + e.comment;
     }
   });
 
@@ -170,6 +182,7 @@ export function formatModuleHeader(lines: string[], cfg: Config): string[] {
       content: string;       // The parameter content without comma/comment
       hasComma: boolean;     // Whether this line originally had a comma
       comment: string;       // Any trailing comment
+      merged?: boolean;      // For continuation lines that were merged with previous line
     }
 
     const paramInfos: ParamInfo[] = [];
@@ -206,6 +219,9 @@ export function formatModuleHeader(lines: string[], cfg: Config): string[] {
         // Check for trailing comma BEFORE removing it
         const hasComma = /,\s*$/.test(body);
         body = body.replace(/,\s*$/, '').trim();
+        
+        // Normalize spacing around = sign
+        body = body.replace(/\s*=\s*/, ' = ');
 
         paramInfos.push({ original: originalLine, kind: 'parameter', content: body, hasComma, comment });
         continue;
@@ -259,7 +275,45 @@ export function formatModuleHeader(lines: string[], cfg: Config): string[] {
       }
 
       if (info.kind === 'continuation') {
-        // Continuation lines - preserve original content/indentation, just handle comma
+        // Skip if this line was merged with the previous parameter
+        if ((info as any).merged) {
+          return;
+        }
+        
+        // Continuation lines - need to indent to align with the opening brace
+        // Find the previous parameter line to determine indentation
+        const prevParamIndex = paramInfos.slice(0, paramInfos.indexOf(info)).reverse().findIndex(p => p.kind === 'parameter');
+        if (prevParamIndex >= 0) {
+          const prevParam = paramInfos[paramInfos.indexOf(info) - prevParamIndex - 1];
+          // Find the position of the opening brace in the previous parameter
+          const braceMatch = prevParam.content.match(/.*=\s*(\{)/);
+          if (braceMatch) {
+            // Calculate indentation to align with first char after {
+            const eqMatch = prevParam.content.match(/^(.*?)\s*=\s*/);
+            if (eqMatch) {
+              const leftPart = eqMatch[1].trim();
+              const allLeftParts = allParamLines.map(p => {
+                const m = p.content.match(/^(.*?)\s*=\s*(.*)$/);
+                return m ? m[1].trim() : p.content;
+              });
+              const maxLeftLen = Math.max(...allLeftParts.map(s => s.length));
+              // Indentation = indent + maxLeftLen + ' = '.length + 1 (for the space after {)
+              const trimmedContent = info.content.trim();
+              // Closing brace should be indented one less (align with opening brace)
+              const contIndent = trimmedContent === '}' 
+                ? ' '.repeat(indentSpaces.length + maxLeftLen + ' = '.length)
+                : ' '.repeat(indentSpaces.length + maxLeftLen + ' = '.length + 1);
+              const commaStr = info.hasComma ? ',' : '';
+              if (info.comment) {
+                out.push(contIndent + trimmedContent + commaStr + ' ' + info.comment);
+              } else {
+                out.push(contIndent + trimmedContent + commaStr);
+              }
+              return;
+            }
+          }
+        }
+        // Fallback: preserve original content
         const commaStr = info.hasComma ? ',' : '';
         if (info.comment) {
           out.push(info.content + commaStr + ' ' + info.comment);
@@ -269,23 +323,94 @@ export function formatModuleHeader(lines: string[], cfg: Config): string[] {
         return;
       }
 
-      // Regular parameter line - only pad if it has a comma (to align commas)
-      // Lines without commas should NOT get trailing whitespace
+      // Regular parameter line - pad to align = signs, then add comma with space
       if (info.hasComma) {
-        const paddedContent = info.content.padEnd(maxContentLen);
-        const baseLine = indentSpaces + paddedContent + ',';
-        if (info.comment) {
-          out.push(baseLine + ' ' + info.comment);
+        // Need to align the = signs, not just pad the whole content
+        // Parse to find the = sign position
+        const eqMatch = info.content.match(/^(.*?)\s*=\s*(.*)$/);
+        if (eqMatch) {
+          const leftPart = eqMatch[1].trim();
+          let rightPart = eqMatch[2].trim();
+          
+          // Check if this line ends with just '{' and has a continuation line
+          // If so, merge the first continuation line onto this line
+          const currentIndex = paramInfos.indexOf(info);
+          if (rightPart === '{' && currentIndex + 1 < paramInfos.length && paramInfos[currentIndex + 1].kind === 'continuation') {
+            const nextLine = paramInfos[currentIndex + 1];
+            rightPart = '{' + nextLine.content.trim();
+            // Mark this continuation as merged so we skip it later
+            nextLine.merged = true;
+          }
+          
+          // Calculate max left part length across all parameters
+          const allLeftParts = allParamLines.map(p => {
+            const m = p.content.match(/^(.*?)\s*=\s*(.*)$/);
+            return m ? m[1].trim() : p.content;
+          });
+          const maxLeftLen = Math.max(...allLeftParts.map(s => s.length));
+          
+          // Calculate max right part length to align commas
+          const allRightParts = allParamLines.map(p => {
+            const m = p.content.match(/^(.*?)\s*=\s*(.*)$/);
+            return m ? m[2].trim() : '';
+          });
+          const maxRightLen = Math.max(...allRightParts.map(s => s.length));
+          
+          const paddedLeft = leftPart.padEnd(maxLeftLen);
+          const paddedRight = rightPart.padEnd(maxRightLen);
+          const baseLine = indentSpaces + paddedLeft + ' = ' + paddedRight + ',';
+          if (info.comment) {
+            out.push(baseLine + ' ' + info.comment);
+          } else {
+            out.push(baseLine);
+          }
         } else {
-          out.push(baseLine);
+          const paddedContent = info.content.padEnd(maxContentLen);
+          const baseLine = indentSpaces + paddedContent + ',';
+          if (info.comment) {
+            out.push(baseLine + ' ' + info.comment);
+          } else {
+            out.push(baseLine);
+          }
         }
       } else {
-        // No comma - don't pad, just output the content as-is
-        const baseLine = indentSpaces + info.content;
-        if (info.comment) {
-          out.push(baseLine + ' ' + info.comment);
+        // No comma - still need to align = signs
+        const eqMatch = info.content.match(/^(.*?)\s*=\s*(.*)$/);
+        if (eqMatch) {
+          const leftPart = eqMatch[1].trim();
+          let rightPart = eqMatch[2].trim();
+          // Calculate max left part length across all parameters
+          const allLeftParts = allParamLines.map(p => {
+            const m = p.content.match(/^(.*?)\s*=\s*(.*)$/);
+            return m ? m[1].trim() : p.content;
+          });
+          const maxLeftLen = Math.max(...allLeftParts.map(s => s.length));
+          
+          const paddedLeft = leftPart.padEnd(maxLeftLen);
+          
+          if (info.comment) {
+            // Calculate max right part length to align comments
+            const allRightParts = allParamLines.map(p => {
+              const m = p.content.match(/^(.*?)\s*=\s*(.*)$/);
+              return m ? m[2].trim() : '';
+            });
+            const maxRightLen = Math.max(...allRightParts.map(s => s.length));
+            const paddedRight = rightPart.padEnd(maxRightLen);
+            const baseLine = indentSpaces + paddedLeft + ' = ' + paddedRight;
+            // Add extra space to align with commas from lines that have them
+            out.push(baseLine + ' ' + ' ' + info.comment);
+          } else {
+            // No comment - don't pad right part to avoid trailing spaces
+            const baseLine = indentSpaces + paddedLeft + ' = ' + rightPart;
+            out.push(baseLine);
+          }
         } else {
-          out.push(baseLine);
+          const baseLine = indentSpaces + info.content;
+          if (info.comment) {
+            out.push(baseLine + ' ' + info.comment);
+          } else {
+            out.push(baseLine);
+          }
         }
       }
     });

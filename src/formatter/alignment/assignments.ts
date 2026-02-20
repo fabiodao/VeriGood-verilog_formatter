@@ -7,22 +7,37 @@
 export function alignAssignmentGroup(lines: string[]): string[] {
   interface Row { rawLines: string[]; lhs: string; op: string; rhsLines: string[]; comment: string; hasOp: boolean; isAssign: boolean; assignRemainder: string; endsWithSemicolon: boolean; }
   // Extract base indent from first non-comment/non-ifdef line
-  const firstCodeLine = lines.find(l => !/^\s*\/\//.test(l) && !/^\s*`(ifn?def|else|endif)\b/.test(l)) || lines[0];
+  const firstCodeLine = lines.find(l => !/^\s*\/\//.test(l) && !/^\s*`(ifn?def|else|endif)\b/.test(l) && l.trim() !== '') || lines[0];
   const baseIndent = (firstCodeLine.match(/^\s*/)?.[0]) || '';
+  // Parse each line into assignment groups
+  // Comments/blanks/ifdefs are kept as separate "rows" but don't break alignment calculation
   const merged: string[][] = [];
   let current: string[] = [];
+  
   lines.forEach(l => {
-    // Standalone comments, ifdefs, and blank lines should be their own group
-    if (/^\s*\/\//.test(l) || /^\s*`(ifn?def|else|endif)\b/.test(l) || /^\s*$/.test(l)) {
+    const trimmed = l.trim();
+    const isComment = /^\/\//.test(trimmed);
+    const isBlank = trimmed === '';
+    const isIfdef = /^`(ifn?def|else|endif)\b/.test(trimmed);
+    
+    if (isComment || isBlank || isIfdef) {
+      // Flush current assignment if any
       if (current.length) {
         merged.push(current);
         current = [];
       }
-      merged.push([l]); // Comment/ifdef/blank as standalone group
+      // Add comment/blank/ifdef as standalone row
+      merged.push([l]);
       return;
     }
+    
+    // This is an assignment line
     current.push(l);
-    if (/;\s*(\/\/.*)?$/.test(l)) { merged.push(current); current = []; }
+    if (/;\s*(\/\/.*)?$/.test(l)) {
+      // Assignment complete
+      merged.push(current);
+      current = [];
+    }
   });
   if (current.length) merged.push(current);
   const rows: Row[] = merged.map(stLines => {
@@ -62,6 +77,7 @@ export function alignAssignmentGroup(lines: string[]): string[] {
   const maxNonAssignLhs = opRows.filter(r => !r.isAssign).length ? Math.max(...opRows.filter(r => !r.isAssign).map(r => r.lhs.length)) : 0;
   const assignPrefixLen = 7; // 'assign '
   const targetLhsWidth = Math.max(assignPrefixLen + maxAssignRemainder, maxNonAssignLhs);
+  // console.log(`[alignAssignmentGroup] maxAssignRemainder=${maxAssignRemainder}, targetLhsWidth=${targetLhsWidth}`);
   const bodies = opRows.map(r => {
     const lhsDisplay = r.isAssign ? ('assign ' + r.assignRemainder.padEnd(targetLhsWidth - assignPrefixLen)) : r.lhs.padEnd(targetLhsWidth);
     const firstRhs = r.rhsLines[0];
@@ -76,15 +92,22 @@ export function alignAssignmentGroup(lines: string[]): string[] {
     }
     const lhsDisplay = r.isAssign ? ('assign ' + r.assignRemainder.padEnd(targetLhsWidth - assignPrefixLen)) : r.lhs.padEnd(targetLhsWidth);
     const prefix = baseIndent + lhsDisplay + ' ' + r.op + ' ';
-    const firstLineCore = (prefix + r.rhsLines[0].trim()).padEnd(maxBodyLen);
+    // Only pad single-line assignments to align semicolons
+    const firstLineCore = r.rhsLines.length === 1 
+      ? (prefix + r.rhsLines[0].trim()).padEnd(maxBodyLen)
+      : (prefix + r.rhsLines[0].trim());
     const firstLine = firstLineCore + (r.rhsLines.length === 1 ? ';' : '') + (r.comment && r.rhsLines.length === 1 ? ' ' + r.comment : (r.rhsLines.length === 1 ? '' : ''));
     out.push(firstLine);
     if (r.rhsLines.length > 1) {
-      const contIndentSpaces = ' '.repeat(prefix.length);
+      // Find the position of the first non-whitespace character in the RHS
+      const firstRhsChar = r.rhsLines[0].trimStart()[0] || '';
+      const contIndentLen = firstRhsChar === '(' ? prefix.length + 1 : prefix.length;
+      const contIndentSpaces = ' '.repeat(contIndentLen);
       const lastIdx = r.rhsLines.length - 1;
+      
       r.rhsLines.slice(1).forEach((rl, idx) => {
         const isLastLine = idx === lastIdx - 1;
-        // All continuation lines are aligned at the position after the = sign
+        // Continuation lines align with the first character after opening paren, or after = sign
         let lineCore = contIndentSpaces + rl.trim();
         if (isLastLine) {
           lineCore = lineCore + ';' + (r.comment ? ' ' + r.comment : '');
