@@ -2,6 +2,18 @@
 
 All notable changes to the extension will be documented in this file.
 
+## [1.7.1] - 2026-02-23
+
+### Fixed
+- Fixed wire/reg/logic declarations with unpacked dimensions being incorrectly padded (e.g., `mem          [0:255]` now correctly formats as `mem [0:255]`)
+- Fixed selection formatting not respecting group boundaries (declarations with initialization now separate from declarations without)
+- Fixed selection formatting using simplified alignment logic instead of proper grouping rules
+- Normalized malformed input `mem[0:255]` (no space) to `mem [0:255]` (with space)
+
+### Improved
+- Selection formatting now uses the same alignment and grouping logic as document formatting
+- Both document and selection formatting produce consistent results for wire/reg declarations
+
 ## [1.7.0] - 2026-02-20
 
 ### Fixed

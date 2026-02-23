@@ -242,7 +242,7 @@ function formatVerilogRange(
 
     // 8. Align wire/reg declarations if requested
     if (cfg.alignWireDeclSemicolons) {
-      result = alignWireDeclarationsInRange(result);
+      result = alignWireDeclarationsInRange(result, cfg);
     }
 
     // 9. Align parameters if requested (only when not inside complete module header)
@@ -388,53 +388,83 @@ function alignAssignmentsInRange(lines: string[]): string[] {
   return result;
 }
 
-function alignWireDeclarationsInRange(lines: string[]): string[] {
-  const declLines: {
-    index: number;
-    indent: string;
-    type: string;
-    range: string;
-    name: string;
-    arrayDim: string;
-    init: string;
-    comment: string;
-    continuationComments?: number[]
-  }[] = [];
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+function alignWireDeclarationsInRange(lines: string[], cfg: Config): string[] {
+  // Import the proper alignment function from wires.ts
+  const { alignWireDeclGroup } = require('./alignment/wires');
+  
+  // Group consecutive wire/reg/logic declarations together
+  // Groups are broken by:
+  // 1. Non-declaration lines (except comments, macros, blank lines)
+  // 2. Switching between declarations with/without initialization
+  // 3. Switching between IO declarations (input/output/inout) and regular declarations
+  const groups: string[][] = [];
+  let currentGroup: string[] = [];
+  let currentGroupHasInit: boolean | null = null;
+  let currentGroupIsIO: boolean | null = null;
+  
+  for (const line of lines) {
     const trimmed = line.trim();
-
-    // Match wire/reg/logic declarations
-    const match = trimmed.match(/^(wire|reg|logic|bit|int|integer|real|time)\s+(\[[^\]]+\])?\s*([A-Za-z_][A-Za-z0-9_]*)\s*(\[[^\]]+\])?\s*(=\s*.+?)?\s*;\s*(\/\/.*)?$/);
-    if (match) {
-      const indent = line.match(/^(\s*)/)?.[1] || '';
-      const type = match[1];
-      const range = match[2] || '';
-      const name = match[3];
-      const arrayDim = match[4] || '';
-      const init = match[5] || '';
-      const comment = match[6] || '';
-      declLines.push({ index: i, indent, type, range, name, arrayDim, init, comment });
+    
+    // Check if this is a wire/reg/logic declaration
+    const isDecl = /^\s*(wire|reg|logic|input|output|inout|integer)\b/.test(line);
+    const isComment = /^\s*\/\//.test(line);
+    const isMacro = /^\s*`(ifn?def|else|endif)\b/.test(line);
+    const isBlank = trimmed === '';
+    
+    if (isDecl) {
+      // Check if this declaration has initialization
+      const lineWithoutComment = line.replace(/\/\/.*$/, '');
+      const hasInit = /=/.test(lineWithoutComment);
+      const isIO = /^\s*(input|output|inout)\b/.test(line);
+      
+      // Check if we need to break the group
+      if (currentGroup.length > 0 && 
+          (currentGroupHasInit !== null && currentGroupHasInit !== hasInit ||
+           currentGroupIsIO !== null && currentGroupIsIO !== isIO)) {
+        // Different type of declaration - flush current group and start new one
+        groups.push(currentGroup);
+        currentGroup = [line];
+        currentGroupHasInit = hasInit;
+        currentGroupIsIO = isIO;
+      } else {
+        // Same type - add to current group
+        currentGroup.push(line);
+        if (currentGroupHasInit === null) currentGroupHasInit = hasInit;
+        if (currentGroupIsIO === null) currentGroupIsIO = isIO;
+      }
+    } else if (currentGroup.length > 0 && (isComment || isMacro || isBlank)) {
+      // Comments, macros, and blank lines don't break groups
+      currentGroup.push(line);
+    } else {
+      // Non-declaration, non-comment/macro/blank line - flush group
+      if (currentGroup.length > 0) {
+        groups.push(currentGroup);
+        currentGroup = [];
+        currentGroupHasInit = null;
+        currentGroupIsIO = null;
+      }
+      groups.push([line]); // Non-declaration line as its own group
     }
   }
-
-  if (declLines.length === 0) return lines;
-
-  // Calculate max lengths
-  const maxType = Math.max(...declLines.map(d => d.type.length));
-  const maxRange = Math.max(...declLines.map(d => d.range.length));
-  const maxName = Math.max(...declLines.map(d => d.name.length));
-
-  // Format (match module header: ranges use padStart so ] aligns)
-  const result = [...lines];
-  for (const decl of declLines) {
-    const typePadded = decl.type.padEnd(maxType);
-    const rangePadded = decl.range ? decl.range.padStart(maxRange) + ' ' : ''.padEnd(maxRange + 1);
-    const namePadded = decl.name.padEnd(maxName);
-    result[decl.index] = `${decl.indent}${typePadded} ${rangePadded}${namePadded}${decl.arrayDim}${decl.init};${decl.comment ? ' ' + decl.comment : ''}`;
+  
+  if (currentGroup.length > 0) {
+    groups.push(currentGroup);
   }
-
+  
+  // Process each group
+  const result: string[] = [];
+  for (const group of groups) {
+    const firstTrimmed = group[0].trim();
+    if (/^\s*(wire|reg|logic|input|output|inout|integer)\b/.test(group[0])) {
+      // This is a declaration group - use the proper alignment function
+      const aligned = alignWireDeclGroup(group, cfg);
+      result.push(...aligned);
+    } else {
+      // Not a declaration group - pass through unchanged
+      result.push(...group);
+    }
+  }
+  
   return result;
 }
 

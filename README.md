@@ -127,6 +127,12 @@ Select the code you want to format, then:
 - **Keyboard**: `Ctrl+K Ctrl+F` (Windows/Linux) or `Cmd+K Cmd+F` (macOS)
 - **Context Menu**: Right-click → "Format Selection"
 
+**Important**: Selection formatting calculates alignment based ONLY on the selected lines. This means:
+- Semicolons, assignments, and declarations are aligned within the selection
+- Groups are separated by the same rules as document formatting (e.g., wires with initialization are separate from wires without)
+- Alignment may differ from document formatting if the selection doesn't include all related declarations
+- This is intentional - selection formatting doesn't look at lines outside your selection
+
 ### Recommended Keybinding
 Add this to your `keybindings.json` for smart formatting (formats selection if text is selected, otherwise formats the whole document):
 
