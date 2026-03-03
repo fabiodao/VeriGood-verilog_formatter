@@ -1,6 +1,6 @@
 /**
  * Wire/reg/logic declaration alignment module
- * 
+ *
  * Aligns wire, reg, logic, input, output, inout, and integer declarations
  */
 
@@ -74,7 +74,7 @@ export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
       }
       let name = remainder.replace(/;\s*$/, '').trim();
       let unpackedDim = '';
-      
+
       // Extract unpacked dimension (second range) from name
       // Normalize to always have a space before the unpacked dimension
       const unpackedMatch = name.match(/^([A-Za-z_][A-Za-z0-9_$]*)(\s*\[.+\])$/);
@@ -83,7 +83,7 @@ export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
         // Ensure there's always a space before the unpacked dimension
         unpackedDim = ' ' + unpackedMatch[2].trim();
       }
-      
+
       let initLines: string[] = [];
       let hasInit = false;
       if (hasEquals) {
@@ -222,7 +222,7 @@ export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
 
     if (r.isMultiNames) {
       const namesCol = r.namesList.trim();
-      const segs = [keywordCol]; 
+      const segs = [keywordCol];
       if (r.typeKeyword) segs.push(typeKeywordCol); // Only add if this row has typeKeyword
       if (maxRange) segs.push(rangeCol); // Always add if maxRange > 0
       segs.push(namesCol);
@@ -231,7 +231,7 @@ export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
       return (pos + 1 + (r.comment ? r.comment.length + 1 : 0) <= cfg.lineLength) ? pos : 0;
     } else {
       const nameCol = r.name;
-      const segs = [keywordCol]; 
+      const segs = [keywordCol];
       if (r.typeKeyword) segs.push(typeKeywordCol); // Only add if this row has typeKeyword
       if (maxRange) segs.push(rangeCol); // Always add if maxRange > 0
       segs.push(nameCol);
@@ -267,8 +267,8 @@ export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
 
     if (r.isMultiNames) {
       const expectedNamesCol = r.namesList.trim();
-      const segs = [expectedKeywordCol]; 
-      if (r.typeKeyword) segs.push(expectedTypeKeywordCol); 
+      const segs = [expectedKeywordCol];
+      if (r.typeKeyword) segs.push(expectedTypeKeywordCol);
       if (maxRange) segs.push(expectedRangeCol); // Always add if maxRange > 0
       segs.push(expectedNamesCol);
       const lineBeforeSemi = r.indent + segs.join(' ');
@@ -280,8 +280,8 @@ export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
       }
     } else {
       const expectedNameCol = r.name;
-      const segs = [expectedKeywordCol]; 
-      if (r.typeKeyword) segs.push(expectedTypeKeywordCol); 
+      const segs = [expectedKeywordCol];
+      if (r.typeKeyword) segs.push(expectedTypeKeywordCol);
       if (maxRange) segs.push(expectedRangeCol); // Always add if maxRange > 0
       segs.push(expectedNameCol);
       let baseDecl = segs.join(' ') + r.unpackedDim;
@@ -356,8 +356,8 @@ export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
     const rangeCol = maxRange ? r.range.padStart(maxRange) : '';
     if (r.isMultiNames) {
       const namesCol = r.namesList.trim();
-      const segs = [keywordCol]; 
-      if (r.typeKeyword) segs.push(typeKeywordCol); 
+      const segs = [keywordCol];
+      if (r.typeKeyword) segs.push(typeKeywordCol);
       if (maxRange) segs.push(rangeCol); // Always add if maxRange > 0, even if empty
       segs.push(namesCol);
       const lineBeforeSemi = r.indent + segs.join(' ');
@@ -370,8 +370,8 @@ export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
       }
     } else {
       const nameCol = r.name + r.unpackedDim;
-      const segs = [keywordCol]; 
-      if (r.typeKeyword) segs.push(typeKeywordCol); 
+      const segs = [keywordCol];
+      if (r.typeKeyword) segs.push(typeKeywordCol);
       if (maxRange) segs.push(rangeCol); // Always add if maxRange > 0, even if empty
       segs.push(nameCol);
       let baseDecl = segs.join(' ');

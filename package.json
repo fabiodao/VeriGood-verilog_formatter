@@ -1,8 +1,8 @@
 {
   "name": "verigood-verilog-formatter",
   "displayName": "VeriGood - Verilog Formatter",
-  "description": "Verilog/SystemVerilog formatter with granular control over formatting features.",
-  "version": "1.7.1",
+  "description": "Verilog/SystemVerilog formatter with granular control over formatting features and UVM testbench support.",
+  "version": "1.8.0",
   "publisher": "FabioOliveira",
   "icon": "icon.png",
   "author": {
@@ -148,6 +148,16 @@
           "type": "boolean",
           "default": true,
           "description": "Add comments to `else and `endif directives."
+        },
+        "verilogFormatter.enableUVMFormatting": {
+          "type": "boolean",
+          "default": true,
+          "description": "Auto-detect and apply UVM testbench formatting conventions (100 char lines, always begin/end, no assignment alignment). Indentation uses editor's tab size setting."
+        },
+        "verilogFormatter.uvmLineLength": {
+          "type": "number",
+          "default": 100,
+          "description": "Maximum line length for UVM testbench code (industry standard is 100 characters)."
         }
       }
     }

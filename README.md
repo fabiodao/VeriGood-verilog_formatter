@@ -10,6 +10,7 @@ A powerful Verilog/SystemVerilog code formatter for VS Code with **granular cont
 
 - **Granular Control** - Enable only the features you want
 - **Production Ready** - Handles complex real-world RTL code with `ifdef`, multi-line expressions, and nested concatenations
+- **UVM Testbench Support** - Automatic detection and independent formatting for UVM/SystemVerilog testbenches
 - **Non-Destructive** - Preserves your code structure while improving readability
 - **Selection Formatting** - Format just the code you select, not the entire file
 - **Zero Configuration** - Works out of the box with sensible defaults
@@ -184,6 +185,72 @@ All settings are prefixed with `verilogFormatter.` and can be configured in VS C
 
 > **Note:** The formatter automatically uses your `editor.tabSize` setting for indentation. You only need to set `verilogFormatter.indentSize` if you want a different value specifically for Verilog files.
 
+## UVM Testbench Support
+
+VeriGood automatically detects and formats UVM/SystemVerilog testbenches differently from RTL code:
+
+### Auto-Detection
+
+Files are identified as UVM testbenches when they contain:
+- UVM macros (`` `uvm_component_utils``, `` `uvm_object_utils``, `` `uvm_field_*``, etc.)
+- UVM base classes (`extends uvm_component`, `extends uvm_test`, `extends uvm_driver`, etc.)
+- UVM phase methods (`build_phase`, `run_phase`, `connect_phase`, etc.)
+- UVM factory/config calls (`uvm_config_db`, `uvm_factory`, etc.)
+
+### UVM-Specific Formatting
+
+The UVM formatter is **completely independent** from the RTL formatter to avoid conflicts:
+
+- ✅ **Aligns assignments within functions/tasks** - Groups consecutive assignments for readability
+- ✅ **Aligns constraint blocks** - Properly formats `constraint` blocks with `==` operators
+- ✅ **No module-level alignment** - Wire/reg declarations and module-level assigns are not aligned
+- ✅ **Editor-controlled indentation** - Uses your editor's tab size setting
+- ✅ **Proper class/function/task indentation** - Handles nested structures correctly
+- ✅ **Preserves function parameters** - Unlike RTL module headers
+
+### Configuration
+
+```json
+{
+  "verilogFormatter.enableUVMFormatting": true,  // Enable auto-detection (default: true)
+  "verilogFormatter.uvmLineLength": 100          // Max line length for UVM (default: 100)
+}
+```
+
+### Example
+
+```systemverilog
+// Before
+class my_driver extends uvm_driver #(my_transaction);
+`uvm_component_utils(my_driver)
+function new(string name, uvm_component parent);
+super.new(name, parent);
+endfunction
+task run_phase(uvm_phase phase);
+forever begin
+seq_item_port.get_next_item(req);
+drive_transaction(req);
+end
+endtask
+endclass
+
+// After (properly indented, no alignment)
+class my_driver extends uvm_driver #(my_transaction);
+  `uvm_component_utils(my_driver)
+
+  function new(string name, uvm_component parent);
+    super.new(name, parent);
+  endfunction
+
+  task run_phase(uvm_phase phase);
+    forever begin
+      seq_item_port.get_next_item(req);
+      drive_transaction(req);
+    end
+  endtask
+endclass
+```
+
 ## Handling Complex Code
 
 VeriGood is designed to handle real-world RTL code:
@@ -253,6 +320,7 @@ The test suite validates:
 - ✓ Wire/reg declarations
 - ✓ Parameters and ports
 - ✓ Comments and edge cases
+- ✓ UVM testbench formatting
 
 Tests automatically run before packaging (`npm run package`) and publishing (`npm run publish`).
 

@@ -5,6 +5,8 @@
 
 import * as vscode from 'vscode';
 import { Config } from './types';
+import { isUVMCode } from './utils/uvmDetection';
+import { formatUVMRange } from './uvmFormatter';
 
 /**
  * Format only a specific range of lines from a document
@@ -16,6 +18,13 @@ export function formatRange(
   options: vscode.FormattingOptions,
   formatDocumentFn: (text: string, indentSize: number) => string
 ): vscode.TextEdit[] {
+  // Route to UVM formatter if UVM code is detected
+  const tempCfg = require('./types').getConfig(options);
+  if (tempCfg.enableUVMFormatting && isUVMCode(document.getText())) {
+    return formatUVMRange(document, range, options);
+  }
+
+  // Otherwise use RTL range formatter
   const startLine = range.start.line;
   const endLine = range.end.line;
 

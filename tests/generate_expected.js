@@ -22,7 +22,7 @@ const expectedDir = path.join(__dirname, 'expected');
 
 console.log('Generating expected outputs with appropriate settings...\n');
 
-const files = fs.readdirSync(inputDir).filter(f => f.endsWith('.v')).sort();
+const files = fs.readdirSync(inputDir).filter(f => f.endsWith('.v') || f.endsWith('.sv')).sort();
 let generated = 0;
 
 files.forEach(file => {

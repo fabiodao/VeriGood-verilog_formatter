@@ -2,6 +2,27 @@
 
 All notable changes to the extension will be documented in this file.
 
+## [1.8.0] - 2026-03-03
+
+### Added
+- **UVM Testbench Support** - Automatic detection and independent formatting for UVM/SystemVerilog testbenches
+  - Auto-detects UVM code by presence of UVM macros, base classes, phase methods, and factory calls
+  - Completely separate formatter from RTL (no shared code to prevent conflicts)
+  - Aligns assignments within functions/tasks/constraints with aligned semicolons
+  - Aligns constraint blocks with `==`, `>=`, `<=` operators
+  - Adds closing annotations (e.g., `endfunction : function_name`, `endclass : class_name`)
+  - No module-level wire/reg/assign alignment (keeps testbench code clean)
+  - Uses editor's tab size setting for indentation (not forced to 4 spaces)
+  - Properly handles class, function, task, and constraint block indentation
+  - Preserves function/task parameters (not treated as module headers)
+  - Full support for both document and selection formatting
+- Added configuration options:
+  - `verilogFormatter.enableUVMFormatting` - Enable/disable UVM auto-detection (default: true)
+  - `verilogFormatter.uvmLineLength` - Max line length for UVM code (default: 100)
+
+### Fixed
+- Fixed module header formatter incorrectly processing function/task declarations in UVM code
+
 ## [1.7.1] - 2026-02-23
 
 ### Fixed

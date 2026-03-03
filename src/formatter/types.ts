@@ -20,6 +20,8 @@ export interface Config {
   enforceBeginEnd: boolean;
   indentCaseStatements: boolean;
   annotateIfdefComments: boolean;
+  enableUVMFormatting?: boolean;
+  uvmLineLength?: number;
 }
 
 /**
@@ -58,7 +60,9 @@ export function getConfig(options?: vscode.FormattingOptions): Config {
     indentAlwaysBlocks: wcfg.get<boolean>('indentAlwaysBlocks', true),
     enforceBeginEnd: wcfg.get<boolean>('enforceBeginEnd', true),
     indentCaseStatements: wcfg.get<boolean>('indentCaseStatements', true),
-    annotateIfdefComments: wcfg.get<boolean>('annotateIfdefComments', true)
+    annotateIfdefComments: wcfg.get<boolean>('annotateIfdefComments', true),
+    enableUVMFormatting: wcfg.get<boolean>('enableUVMFormatting', true),
+    uvmLineLength: wcfg.get<number>('uvmLineLength', 100)
   };
 }
 

@@ -9,6 +9,8 @@ import * as vscode from 'vscode';
 import { Config, getConfig, hasAnyFeatureEnabled } from './types';
 import { applyCommentColumn, wrapComment } from './utils/comments';
 import { MacroAnnotator } from './utils/macros';
+import { isUVMCode } from './utils/uvmDetection';
+import { formatUVMDocument, formatUVMRange } from './uvmFormatter';
 
 // Import alignment modules
 import { alignAssignmentGroup } from './alignment/assignments';
@@ -280,6 +282,12 @@ export function formatDocument(document: vscode.TextDocument, options: vscode.Fo
   const cfg = getConfig(options);  // Pass options to get editor's tabSize
   const original = document.getText();
 
+  // Route to UVM formatter if UVM code is detected
+  if (cfg.enableUVMFormatting && isUVMCode(original)) {
+    return formatUVMDocument(document, options);
+  }
+
+  // Otherwise use RTL formatter
   // Check if any formatting feature is enabled
   const anyFeatureEnabled = cfg.removeTrailingWhitespace || cfg.maxBlankLines < 100 ||
     cfg.alignAssignments || cfg.alignWireDeclSemicolons || cfg.alignParameters ||

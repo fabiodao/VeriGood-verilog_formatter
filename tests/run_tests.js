@@ -15,7 +15,8 @@ const testConfig = {
   '08_parameters_ports.v': { indentAlwaysBlocks: false },
   '09_comments_edge_cases.v': { indentAlwaysBlocks: true },
   '10_parameter_alignment.v': { indentAlwaysBlocks: false },
-  '11_nested_ifdefs.v': { indentAlwaysBlocks: false }
+  '11_nested_ifdefs.v': { indentAlwaysBlocks: false },
+  '12_uvm_testbench.sv': { indentAlwaysBlocks: true }
 };
 
 const inputDir = path.join(__dirname, 'inputs');
@@ -58,7 +59,7 @@ if (!fs.existsSync(expectedDir) || fs.readdirSync(expectedDir).length === 0) {
   process.exit(1);
 }
 
-const files = fs.readdirSync(inputDir).filter(f => f.endsWith('.v')).sort();
+const files = fs.readdirSync(inputDir).filter(f => f.endsWith('.v') || f.endsWith('.sv')).sort();
 
 let passed = 0;
 let failed = 0;

@@ -8,6 +8,12 @@ import { Config } from '../types';
 import { alignModuleHeaderParameterLines } from './moduleHeaderParams';
 
 export function formatModuleHeader(lines: string[], cfg: Config): string[] {
+  // Only format module declarations, not function/task declarations
+  const firstLine = lines[0]?.trim() || '';
+  if (!/^\s*module\b/.test(firstLine)) {
+    return lines;
+  }
+  
   const hasOpen = lines.some(l => l.includes('('));
   const hasClose = lines.some(l => /\)\s*;\s*$/.test(l));
   if (!hasOpen || !hasClose) return lines;
