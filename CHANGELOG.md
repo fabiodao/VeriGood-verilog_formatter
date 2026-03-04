@@ -2,6 +2,17 @@
 
 All notable changes to the extension will be documented in this file.
 
+## [1.8.1] - 2026-03-03
+
+### Fixed
+- Fixed indentation for `virtual task` and `virtual function` declarations
+- Fixed commented-out `begin`/`end` blocks incorrectly affecting indentation
+- Fixed spacing normalization to preserve string literal contents
+- Fixed operator spacing to add single space around all logical and mathematical operators
+- Fixed line ending preservation (CRLF vs LF)
+- Fixed internal spacing normalization in variable declarations
+- Fixed `wait()` statements being included in assignment alignment groups
+
 ## [1.8.0] - 2026-03-03
 
 ### Added
@@ -11,17 +22,29 @@ All notable changes to the extension will be documented in this file.
   - Aligns assignments within functions/tasks/constraints with aligned semicolons
   - Aligns constraint blocks with `==`, `>=`, `<=` operators
   - Adds closing annotations (e.g., `endfunction : function_name`, `endclass : class_name`)
+  - Supports `virtual` keyword for functions and tasks
+  - Normalizes spacing: removes extra spaces before semicolons, adds spaces around operators
+  - Normalizes internal spacing in variable declarations (e.g., `string    name` → `string name`)
+  - Ignores `begin`/`end` keywords in comments for indentation tracking
+  - Skips `wait()` statements from assignment alignment groups
   - No module-level wire/reg/assign alignment (keeps testbench code clean)
   - Uses editor's tab size setting for indentation (not forced to 4 spaces)
   - Properly handles class, function, task, and constraint block indentation
   - Preserves function/task parameters (not treated as module headers)
+  - Preserves original line endings (CRLF/LF)
   - Full support for both document and selection formatting
+  - Smart selection formatting: normalizes to minimum indent when selecting partial code inside functions/tasks
 - Added configuration options:
   - `verilogFormatter.enableUVMFormatting` - Enable/disable UVM auto-detection (default: true)
   - `verilogFormatter.uvmLineLength` - Max line length for UVM code (default: 100)
 
 ### Fixed
 - Fixed module header formatter incorrectly processing function/task declarations in UVM code
+- Fixed indentation not being applied correctly for `virtual task` and `virtual function` declarations
+- Fixed line ending preservation (CRLF vs LF) in UVM formatter
+- Fixed commented-out `begin`/`end` blocks incorrectly affecting indentation levels
+- Fixed spacing normalization to preserve string literal contents
+- Fixed operator spacing to add single space around all logical and mathematical operators
 
 ## [1.7.1] - 2026-02-23
 

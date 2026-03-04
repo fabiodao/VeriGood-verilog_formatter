@@ -81,12 +81,12 @@ class my_driver extends uvm_driver #(my_transaction);
       seq_item_port.get_next_item(req);
       drive_transaction(req);
       seq_item_port.item_done();
-      transaction_count = transaction_count+1;
+      transaction_count = transaction_count + 1;
     end
   endtask : run_phase
 
   task drive_transaction(my_transaction tr);
-    if(tr.valid==1) begin
+    if(tr.valid == 1) begin
       vif.data  <= tr.data;
       vif.addr  <= tr.addr;
       vif.valid <= 1'b1   ;

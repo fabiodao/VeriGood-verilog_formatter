@@ -27,8 +27,11 @@ export function formatUVMDocument(document: vscode.TextDocument, options: vscode
   const original = document.getText();
   const lines = original.split(/\r?\n/);
   
+  // Detect original line ending
+  const eol = original.includes('\r\n') ? '\r\n' : '\n';
+  
   const formatted = formatUVMLines(lines, cfg);
-  const newText = formatted.join('\n') + (original.endsWith('\n') ? '\n' : '');
+  const newText = formatted.join(eol) + (original.endsWith('\n') || original.endsWith('\r\n') ? eol : '');
   
   if (newText === original) {
     return [];
@@ -64,7 +67,122 @@ function formatUVMLines(lines: string[], cfg: UVMConfig): string[] {
   // Second pass: Align assignments within functions/tasks and constraints
   const aligned = alignUVMAssignments(indented, cfg);
   
-  return aligned;
+  // Third pass: Normalize spacing (operators, semicolons, parentheses)
+  const normalized = normalizeUVMSpacing(aligned);
+  
+  return normalized;
+}
+
+/**
+ * Normalize spacing for operators, semicolons, and parentheses
+ */
+/**
+ * Normalize spacing for operators, semicolons, and parentheses
+ * This runs AFTER alignment, so we need to be careful not to break aligned assignments
+ */
+function normalizeUVMSpacing(lines: string[]): string[] {
+  return lines.map(line => {
+    const trimmed = line.trim();
+    if (trimmed === '' || trimmed.startsWith('//')) {
+      return line; // Preserve blank lines and comments as-is
+    }
+    
+    const indent = line.match(/^(\s*)/)?.[1] || '';
+    
+    // Check if this is an assignment line (has = or <= operator at top level)
+    const isAssignment = /^[^(]*\s*(<=|=)(?!=)\s+/.test(trimmed) && 
+                         !/^(if|for|while|foreach|repeat|wait)\s*\(/.test(trimmed);
+    
+    if (isAssignment) {
+      // For assignments, preserve the alignment padding but normalize operators in RHS
+      // Split by quotes to avoid modifying string contents
+      const parts = trimmed.split(/("[^"]*"|'[^']*')/);
+      let normalized = '';
+      
+      for (let i = 0; i < parts.length; i++) {
+        if (i % 2 === 0) {
+          // Non-string part
+          let part = parts[i];
+          
+          // Don't remove spaces before semicolons (preserve alignment)
+          // But normalize operators
+          part = normalizeOperators(part);
+          
+          normalized += part;
+        } else {
+          // String literal - preserve as-is
+          normalized += parts[i];
+        }
+      }
+      
+      return indent + normalized;
+    } else {
+      // For non-assignments, normalize everything
+      // Split by quotes to avoid modifying string contents
+      const parts = trimmed.split(/("[^"]*"|'[^']*')/);
+      let normalized = '';
+      
+      for (let i = 0; i < parts.length; i++) {
+        if (i % 2 === 0) {
+          // Non-string part - normalize it
+          let part = parts[i];
+          
+          // Remove extra spaces before semicolons
+          part = part.replace(/\s+;/g, ';');
+          
+          // Normalize parentheses spacing
+          part = normalizeParentheses(part);
+          
+          // Add spaces around operators
+          part = normalizeOperators(part);
+          
+          normalized += part;
+        } else {
+          // String literal - preserve as-is
+          normalized += parts[i];
+        }
+      }
+      
+      return indent + normalized;
+    }
+  });
+}
+
+/**
+ * Normalize spacing around operators
+ */
+function normalizeOperators(text: string): string {
+  let result = text;
+  
+  // Two-char operators (process first to avoid conflicts)
+  const twoCharOps = ['==', '!=', '<=', '>=', '&&', '||', '<<', '>>', '<<<', '>>>'];
+  for (const op of twoCharOps) {
+    const escapedOp = op.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(\\S)${escapedOp}(\\S)`, 'g');
+    result = result.replace(regex, `$1 ${op} $2`);
+  }
+  
+  // Single-char operators: +, -, *, /, %, <, >
+  const singleOps = ['+', '-', '*', '/', '%', '<', '>'];
+  for (const op of singleOps) {
+    const escapedOp = op.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(\\w|\\))${escapedOp}(\\w|\\()`, 'g');
+    result = result.replace(regex, `$1 ${op} $2`);
+  }
+  
+  return result;
+}
+
+/**
+ * Normalize spacing around parentheses
+ */
+function normalizeParentheses(text: string): string {
+  let result = text;
+  
+  // Remove extra spaces between identifiers/keywords and opening parentheses
+  result = result.replace(/(\w)\s+\(/g, '$1(');
+  
+  return result;
 }
 
 /**
@@ -136,21 +254,21 @@ function applyUVMIndentation(lines: string[], cfg: UVMConfig): string[] {
         nameStack.push({type: 'class', name: match[1]});
       }
       indentLevel++;
-    } else if (/^function\b/.test(trimmed)) {
-      const match = trimmed.match(/^function\s+(?:\w+\s+)?(\w+)\s*\(/);
+    } else if (/^(virtual\s+)?function\b/.test(trimmed)) {
+      const match = trimmed.match(/^(?:virtual\s+)?function\s+(?:\w+\s+)?(\w+)\s*\(/);
       if (match) {
         nameStack.push({type: 'function', name: match[1]});
       }
       indentLevel++;
-    } else if (/^task\b/.test(trimmed)) {
-      const match = trimmed.match(/^task\s+(\w+)\s*\(/);
+    } else if (/^(virtual\s+)?task\b/.test(trimmed)) {
+      const match = trimmed.match(/^(?:virtual\s+)?task\s+(\w+)\s*\(/);
       if (match) {
         nameStack.push({type: 'task', name: match[1]});
       }
       indentLevel++;
     } else if (/^constraint\b/.test(trimmed) && /\{\s*$/.test(trimmed)) {
       indentLevel++;
-    } else if (/\bbegin\b/.test(trimmed)) {
+    } else if (/\bbegin\b/.test(trimmed) && !trimmed.startsWith('//')) {
       indentLevel++;
     } else if (/^(if|else|for|while|foreach|repeat)\b/.test(trimmed) && !/\bbegin\b/.test(trimmed) && !/;\s*$/.test(trimmed)) {
       indentLevel++;
@@ -188,7 +306,7 @@ function alignUVMAssignments(lines: string[], cfg: UVMConfig): string[] {
       // Match operators: ==, >=, <=, = (longest first to avoid partial matches)
       const match = trimmed.match(/^(.+?)\s*(==|>=|<=|=)(?!=)\s*(.+?)\s*(;?)\s*$/);
       if (match) {
-        const lhs = match[1].trim();
+        const lhs = match[1].trim().replace(/\s+/g, ' '); // Normalize multiple spaces to single space
         const rhs = match[3].trim();
         maxLhsWidth = Math.max(maxLhsWidth, lhs.length);
         if (alignSemicolons) {
@@ -210,7 +328,7 @@ function alignUVMAssignments(lines: string[], cfg: UVMConfig): string[] {
       // Match assignment operators: ==, >=, <=, = (longest first)
       const match = trimmed.match(/^(.+?)\s*(==|>=|<=|=)(?!=)\s*(.+?)\s*(;?)\s*$/);
       if (match) {
-        const lhs = match[1].trim();
+        const lhs = match[1].trim().replace(/\s+/g, ' '); // Normalize multiple spaces to single space
         const op = match[2];
         const rhs = match[3].trim();
         const semi = match[4];
@@ -239,12 +357,12 @@ function alignUVMAssignments(lines: string[], cfg: UVMConfig): string[] {
     const trimmed = line.trim();
     
     // Track function/task/constraint scope
-    if (/^function\b/.test(trimmed)) {
+    if (/^(virtual\s+)?function\b/.test(trimmed)) {
       flushAssignments();
       inFunction = true;
       result.push(line);
       continue;
-    } else if (/^task\b/.test(trimmed)) {
+    } else if (/^(virtual\s+)?task\b/.test(trimmed)) {
       flushAssignments();
       inTask = true;
       result.push(line);
@@ -270,9 +388,12 @@ function alignUVMAssignments(lines: string[], cfg: UVMConfig): string[] {
     // Collect assignments within functions/tasks/constraints
     if ((inFunction || inTask || inConstraint) && /\s*(<=|=|==)\s*/.test(trimmed) && !/^\/\//.test(trimmed)) {
       // Skip certain lines that shouldn't be aligned
-      if (/^(if|else|for|while|foreach|repeat|return)\b/.test(trimmed)) {
+      if (/^(if|else|for|while|foreach|repeat|return|wait)\b/.test(trimmed)) {
         flushAssignments();
-        result.push(line);
+        // Normalize spacing for skipped lines (remove extra spaces before semicolon)
+        const lineIndent = line.match(/^\s*/)?.[0] || '';
+        const normalized = lineIndent + trimmed.replace(/\s+;/g, ';');
+        result.push(normalized);
         continue;
       }
       
@@ -315,10 +436,20 @@ export function formatUVMRange(
   const endLine = range.end.line;
   const selectedLines = lines.slice(startLine, endLine + 1);
   
+  // Detect original line ending
+  const eol = fullText.includes('\r\n') ? '\r\n' : '\n';
+  
+  // Check if selection includes a function/task/class declaration
+  const includesDeclaration = selectedLines.some(line => {
+    const trimmed = line.trim();
+    return /^(class|(virtual\s+)?(function|task)|module|package|interface)\b/.test(trimmed);
+  });
+  
   // For range formatting, we need to:
-  // 1. Determine the starting indent level by analyzing context before selection
-  // 2. Track class/function/task names from before the selection for annotations
-  // 3. Track scope state (inFunction, inTask, inConstraint) from before selection
+  // 1. If selection includes declaration: use context-based indentation
+  // 2. If selection is only inside a scope: normalize to minimum indent in selection
+  // 3. Track class/function/task names from before the selection for annotations
+  // 4. Track scope state (inFunction, inTask, inConstraint) from before selection
   
   let startIndentLevel = 0;
   const nameStack: Array<{type: string, name: string}> = [];
@@ -326,30 +457,66 @@ export function formatUVMRange(
   let inTask = false;
   let inConstraint = false;
   
+  if (!includesDeclaration) {
+    // Selection is inside a scope - find minimum indent and normalize to it
+    const minIndent = Math.min(...selectedLines
+      .filter(line => line.trim() !== '')
+      .map(line => line.match(/^(\s*)/)?.[1].length || 0)
+    );
+    
+    // Normalize selected lines to start from indent level 0
+    const normalizedLines = selectedLines.map(line => {
+      if (line.trim() === '') return '';
+      const currentIndent = line.match(/^(\s*)/)?.[1].length || 0;
+      const relativeIndent = Math.max(0, currentIndent - minIndent);
+      return ' '.repeat(relativeIndent) + line.trim();
+    });
+    
+    // Format with indent level 0, then restore minimum indent
+    const formatted = formatUVMLines(normalizedLines, cfg);
+    const restoredIndent = formatted.map(line => {
+      if (line.trim() === '') return '';
+      return ' '.repeat(minIndent) + line;
+    });
+    
+    const newText = restoredIndent.join(eol);
+    const originalText = selectedLines.join(eol);
+    
+    if (newText === originalText) {
+      return [];
+    }
+    
+    const rangeStart = new vscode.Position(startLine, 0);
+    const rangeEnd = new vscode.Position(endLine, lines[endLine].length);
+    const editRange = new vscode.Range(rangeStart, rangeEnd);
+    
+    return [vscode.TextEdit.replace(editRange, newText)];
+  }
+  
   for (let i = 0; i < startLine; i++) {
     const trimmed = lines[i].trim();
     
     // Track indent level
-    if (/^(class|function|task|module|package|interface)\b/.test(trimmed)) {
+    if (/^(class|(virtual\s+)?(function|task)|module|package|interface)\b/.test(trimmed)) {
       startIndentLevel++;
       
       // Track names for annotations
       if (/^class\b/.test(trimmed)) {
         const match = trimmed.match(/^class\s+(\w+)/);
         if (match) nameStack.push({type: 'class', name: match[1]});
-      } else if (/^function\b/.test(trimmed)) {
-        const match = trimmed.match(/^function\s+(?:\w+\s+)?(\w+)\s*\(/);
+      } else if (/^(virtual\s+)?function\b/.test(trimmed)) {
+        const match = trimmed.match(/^(?:virtual\s+)?function\s+(?:\w+\s+)?(\w+)\s*\(/);
         if (match) nameStack.push({type: 'function', name: match[1]});
         inFunction = true;
-      } else if (/^task\b/.test(trimmed)) {
-        const match = trimmed.match(/^task\s+(\w+)\s*\(/);
+      } else if (/^(virtual\s+)?task\b/.test(trimmed)) {
+        const match = trimmed.match(/^(?:virtual\s+)?task\s+(\w+)\s*\(/);
         if (match) nameStack.push({type: 'task', name: match[1]});
         inTask = true;
       }
     } else if (/^constraint\b/.test(trimmed) && /\{\s*$/.test(trimmed)) {
       startIndentLevel++;
       inConstraint = true;
-    } else if (/\bbegin\b/.test(trimmed)) {
+    } else if (/\bbegin\b/.test(trimmed) && !trimmed.startsWith('//')) {
       startIndentLevel++;
     }
     
@@ -373,8 +540,8 @@ export function formatUVMRange(
   }
   
   const formatted = formatUVMLinesWithStartIndent(selectedLines, cfg, startIndentLevel, nameStack, inFunction, inTask, inConstraint);
-  const newText = formatted.join('\n');
-  const originalText = selectedLines.join('\n');
+  const newText = formatted.join(eol);
+  const originalText = selectedLines.join(eol);
   
   if (newText === originalText) {
     return [];
@@ -406,7 +573,10 @@ function formatUVMLinesWithStartIndent(
   // Second pass: Align assignments (only within the selected lines)
   const aligned = alignUVMAssignmentsForRange(indented, cfg, initialInFunction, initialInTask, initialInConstraint);
   
-  return aligned;
+  // Third pass: Normalize spacing
+  const normalized = normalizeUVMSpacing(aligned);
+  
+  return normalized;
 }
 
 /**
@@ -480,21 +650,21 @@ function applyUVMIndentationWithContext(
         nameStack.push({type: 'class', name: match[1]});
       }
       indentLevel++;
-    } else if (/^function\b/.test(trimmed)) {
-      const match = trimmed.match(/^function\s+(?:\w+\s+)?(\w+)\s*\(/);
+    } else if (/^(virtual\s+)?function\b/.test(trimmed)) {
+      const match = trimmed.match(/^(?:virtual\s+)?function\s+(?:\w+\s+)?(\w+)\s*\(/);
       if (match) {
         nameStack.push({type: 'function', name: match[1]});
       }
       indentLevel++;
-    } else if (/^task\b/.test(trimmed)) {
-      const match = trimmed.match(/^task\s+(\w+)\s*\(/);
+    } else if (/^(virtual\s+)?task\b/.test(trimmed)) {
+      const match = trimmed.match(/^(?:virtual\s+)?task\s+(\w+)\s*\(/);
       if (match) {
         nameStack.push({type: 'task', name: match[1]});
       }
       indentLevel++;
     } else if (/^constraint\b/.test(trimmed) && /\{\s*$/.test(trimmed)) {
       indentLevel++;
-    } else if (/\bbegin\b/.test(trimmed)) {
+    } else if (/\bbegin\b/.test(trimmed) && !trimmed.startsWith('//')) {
       indentLevel++;
     } else if (/^(if|else|for|while|foreach|repeat)\b/.test(trimmed) && !/\bbegin\b/.test(trimmed) && !/;\s*$/.test(trimmed)) {
       indentLevel++;
@@ -538,7 +708,7 @@ function alignUVMAssignmentsForRange(
       // Match operators: ==, >=, <=, = (longest first to avoid partial matches)
       const match = trimmed.match(/^(.+?)\s*(==|>=|<=|=)(?!=)\s*(.+?)\s*(;?)\s*$/);
       if (match) {
-        const lhs = match[1].trim();
+        const lhs = match[1].trim().replace(/\s+/g, ' '); // Normalize multiple spaces to single space
         const rhs = match[3].trim();
         maxLhsWidth = Math.max(maxLhsWidth, lhs.length);
         if (alignSemicolons) {
@@ -560,7 +730,7 @@ function alignUVMAssignmentsForRange(
       // Match assignment operators: ==, >=, <=, = (longest first)
       const match = trimmed.match(/^(.+?)\s*(==|>=|<=|=)(?!=)\s*(.+?)\s*(;?)\s*$/);
       if (match) {
-        const lhs = match[1].trim();
+        const lhs = match[1].trim().replace(/\s+/g, ' '); // Normalize multiple spaces to single space
         const op = match[2];
         const rhs = match[3].trim();
         const semi = match[4];
@@ -589,12 +759,12 @@ function alignUVMAssignmentsForRange(
     const trimmed = line.trim();
     
     // Track function/task/constraint scope
-    if (/^function\b/.test(trimmed)) {
+    if (/^(virtual\s+)?function\b/.test(trimmed)) {
       flushAssignments();
       inFunction = true;
       result.push(line);
       continue;
-    } else if (/^task\b/.test(trimmed)) {
+    } else if (/^(virtual\s+)?task\b/.test(trimmed)) {
       flushAssignments();
       inTask = true;
       result.push(line);
@@ -620,9 +790,12 @@ function alignUVMAssignmentsForRange(
     // Collect assignments within functions/tasks/constraints
     if ((inFunction || inTask || inConstraint) && /\s*(<=|=|==)\s*/.test(trimmed) && !/^\/\//.test(trimmed)) {
       // Skip certain lines that shouldn't be aligned
-      if (/^(if|else|for|while|foreach|repeat|return)\b/.test(trimmed)) {
+      if (/^(if|else|for|while|foreach|repeat|return|wait)\b/.test(trimmed)) {
         flushAssignments();
-        result.push(line);
+        // Normalize spacing for skipped lines (remove extra spaces before semicolon)
+        const lineIndent = line.match(/^\s*/)?.[0] || '';
+        const normalized = lineIndent + trimmed.replace(/\s+;/g, ';');
+        result.push(normalized);
         continue;
       }
       
