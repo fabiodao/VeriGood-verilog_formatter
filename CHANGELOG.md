@@ -2,6 +2,12 @@
 
 All notable changes to the extension will be documented in this file.
 
+## [1.8.2] - 2026-03-06
+
+### Fixed
+- Fixed selection formatting incorrectly treating ternary operator continuation lines as assignments
+- Fixed selection formatting not preserving comparison operators (e.g., `==` was being split into `= =`)
+
 ## [1.8.1] - 2026-03-03
 
 ### Fixed

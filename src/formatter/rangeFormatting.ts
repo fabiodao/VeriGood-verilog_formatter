@@ -363,20 +363,27 @@ function alignMultilineConditions(lines: string[]): string[] {
 }
 
 function alignAssignmentsInRange(lines: string[]): string[] {
-  const assignLines: { index: number; indent: string; lhs: string; rhs: string; comment: string }[] = [];
+  const assignLines: { index: number; indent: string; lhs: string; op: string; rhs: string; comment: string }[] = [];
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
+
+    // Skip lines that don't look like assignments (e.g., continuation lines of ternary operators)
+    // These typically don't start with 'assign' or a variable name
+    if (!trimmed.startsWith('assign ') && trimmed.startsWith('(')) {
+      continue;
+    }
 
     // Match assign statements: lhs = rhs ; //comment
     const match = trimmed.match(/^(.+?)\s*(<=|=)(?!=)\s*(.+?)\s*;\s*(\/\/.*)?$/);
     if (match) {
       const indent = line.match(/^(\s*)/)?.[1] || '';
       const lhs = match[1].trim();
+      const op = match[2]; // Preserve the original operator
       const rhs = match[3].trim();
       const comment = match[4] || '';
-      assignLines.push({ index: i, indent, lhs, rhs, comment });
+      assignLines.push({ index: i, indent, lhs, op, rhs, comment });
     }
   }
 
@@ -391,7 +398,7 @@ function alignAssignmentsInRange(lines: string[]): string[] {
   for (const assign of assignLines) {
     const lhsPadded = assign.lhs.padEnd(maxLhs);
     const rhsPadded = assign.rhs.padEnd(maxRhs);
-    result[assign.index] = `${assign.indent}${lhsPadded} = ${rhsPadded};${assign.comment ? ' ' + assign.comment : ''}`;
+    result[assign.index] = `${assign.indent}${lhsPadded} ${assign.op} ${rhsPadded};${assign.comment ? ' ' + assign.comment : ''}`;
   }
 
   return result;
