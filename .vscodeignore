@@ -1,24 +1,28 @@
+# Source & build config (only compiled dist/ is shipped)
+src/**
+**/*.ts
+**/*.map
+**/tsconfig.json
+**/.eslintrc.json
+!dist/**/*.js
+
+# Editor / tooling
 .vscode/**
 .vscode-test/**
-src/**
 .gitignore
 .yarnrc
 vsc-extension-quickstart.md
-**/tsconfig.json
-**/.eslintrc.json
-**/*.map
-**/*.ts
-!dist/**/*.js
+
+# Test suite and local debug/scratch scripts (never shipped)
+tests/**
+test_*.js
 test_*.v
-test-formatter.js
-check_case_ends.js
-mccu_test_formatted_io.v
-mccu_test.v
-module_multiline port.v
-module_multiline_formatted.v
-test_assign_alignment.js
-test_formatter.js
-test_mccu_io_check.js
-test_mccu_section.js
+check_*.js
+
+# Development notes not needed in the packaged extension
+RELEASE_*.md
+LOGGING_SYSTEM.md
+
+# Dependencies & build artifacts
 node_modules/**
 *.vsix

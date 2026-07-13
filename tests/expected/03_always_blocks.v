@@ -30,8 +30,8 @@ end
 always @(*) begin
   case (state)
     IDLE   : next_state = ACTIVE;
-    ACTIVE : next_state = IDLE  ;
-    default: next_state = IDLE  ;
+    ACTIVE : next_state = IDLE;
+    default: next_state = IDLE;
   endcase
 end
 

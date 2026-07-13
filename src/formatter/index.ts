@@ -746,6 +746,15 @@ export function formatDocument(document: vscode.TextDocument, options: vscode.Fo
     ? withBlockAlignment
     : normalizeIfdefIndentation(withBlockAlignment);
 
+  // Ensure blank lines are truly empty and formatting introduced no trailing
+  // whitespace. The earlier strip only runs over the raw input lines, so alignment
+  // passes can still emit whitespace-only or trailing-space lines.
+  if (cfg.removeTrailingWhitespace) {
+    for (let i = 0; i < finalLines.length; i++) {
+      finalLines[i] = finalLines[i].replace(/\s+$/, '');
+    }
+  }
+
   // Remove trailing blank lines while preserving original end-of-file newline behavior
   while (finalLines.length > 0 && finalLines[finalLines.length - 1].trim() === '') {
     finalLines.pop();

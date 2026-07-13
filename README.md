@@ -44,7 +44,7 @@ module my_module #(
 ```
 
 ### Assignment Alignment
-Aligns consecutive assignments for improved readability:
+Aligns the operators of consecutive assignments for improved readability, while keeping each semicolon tight to the right-hand side:
 
 ```verilog
 // Before
@@ -53,9 +53,9 @@ assign valid = enable & ready;
 assign count_next = count + 1;
 
 // After
-assign data_out   = data_in       ;
+assign data_out   = data_in;
 assign valid      = enable & ready;
-assign count_next = count + 1     ;
+assign count_next = count + 1;
 ```
 
 ### Wire/Reg Declaration Alignment
@@ -301,7 +301,7 @@ Properly formats complex signal concatenations:
 
 ## Testing
 
-VeriGood includes a comprehensive test suite with **72+ test cases** covering all features and edge cases.
+VeriGood includes a comprehensive test suite of **12 test suites** (one per feature area) covering all features and edge cases.
 
 ### Running Tests
 
@@ -319,12 +319,14 @@ The test suite validates:
 - ✓ Assignment alignment
 - ✓ Wire/reg declarations
 - ✓ Parameters and ports
+- ✓ Parameter alignment
 - ✓ Comments and edge cases
+- ✓ Nested ifdef/ifndef blocks
 - ✓ UVM testbench formatting
 
 Tests automatically run before packaging (`npm run package`) and publishing (`npm run publish`).
 
-See [tests/QUICK_START.md](tests/QUICK_START.md) for quick reference or [tests/README.md](tests/README.md) for detailed documentation.
+Test inputs live in `tests/inputs/` with golden outputs in `tests/expected/`. After an intentional formatting change, review the diffs and regenerate the golden outputs with `npm run test:generate`.
 
 ## Contributing
 

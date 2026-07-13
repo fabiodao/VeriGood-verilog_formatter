@@ -19,7 +19,7 @@ always @(*) begin
       overflow = carry;
     end
     SUB: begin
-      result   = a - b ;
+      result   = a - b;
       overflow = borrow;
     end
     default: begin
@@ -46,7 +46,7 @@ end
 always @(*) begin
   case (state)
     IDLE   : next = WAIT; // Go to wait
-    WAIT   : next = RUN ; // Start running
+    WAIT   : next = RUN;  // Start running
     RUN    : next = IDLE; // Return to idle
     default: next = IDLE;
   endcase
@@ -57,7 +57,7 @@ always @(*) begin
   if (enable) begin
     case (cmd)
       READ : data_out  = mem[addr];
-      WRITE: mem[addr] = data_in  ;
+      WRITE: mem[addr] = data_in;
     endcase
   end
 end
@@ -72,7 +72,7 @@ always @(*) begin
     end
     RUN: begin
       counter = counter+1;
-      ready   = 1        ;
+      ready   = 1;
     end
     default: begin
       counter = 0;

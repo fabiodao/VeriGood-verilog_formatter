@@ -59,3 +59,11 @@ input wire rst_n,
 output reg [7:0] data_out
 );
 endmodule
+
+// Test 8: Multi-port module with aligned comments (comma-less last port)
+module commented_ports(
+input wire clk, // clock
+input wire [7:0] addr, // address bus
+output reg [31:0] data_out // registered output
+);
+endmodule

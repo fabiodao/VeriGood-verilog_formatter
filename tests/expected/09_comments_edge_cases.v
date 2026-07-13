@@ -54,13 +54,13 @@ always @(*)
 
 // Test 10: Complex bit manipulations
 assign result   = {data[31:24], data[23:16], data[15:8], data[7:0]};
-assign swapped  = {data[7:0], data[15:8]}                          ;
+assign swapped  = {data[7:0], data[15:8]};
 
 // Test 11: Replication and concatenation
-assign repeated = {8{1'b0}}                                        ;
-assign combined = {4'hF, repeated}                                 ;
+assign repeated = {8{1'b0}};
+assign combined = {4'hF, repeated};
 
 // Test 12: Nested concatenation with replication - unformatted
-assign complex  = {2{a,b}},{4{c}},d                                ;
+assign complex  = {2{a,b}},{4{c}},d;
 
 endmodule

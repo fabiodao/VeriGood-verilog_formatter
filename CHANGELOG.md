@@ -2,6 +2,15 @@
 
 All notable changes to the extension will be documented in this file.
 
+## [1.8.3] - 2026-07-13
+
+### Changed
+- Assignment semicolons now stay tight to the right-hand side instead of being padded to align. Operator (`=`/`<=`) alignment is preserved, and trailing comments are aligned *after* the semicolon. Applies to `assign` statements and assignments inside `always`/`case`/`if` blocks.
+- The comma-less last port in a module header now reserves the comma column so its trailing `//` comment aligns with the other ports' comments. Single-port headers are unaffected (no spurious padding).
+
+### Fixed
+- Blank lines are now emitted truly empty. When `removeTrailingWhitespace` is enabled, formatting passes no longer leave whitespace-only or trailing-whitespace lines.
+
 ## [1.8.2] - 2026-03-06
 
 ### Fixed

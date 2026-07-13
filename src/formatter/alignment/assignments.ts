@@ -69,35 +69,40 @@ export function alignAssignmentGroup(lines: string[]): string[] {
   });
   const opRows = rows.filter(r => r.hasOp);
   if (!opRows.length) {
-    // Preserve base indentation for non-operator lines
-    return rows.flatMap(r => r.rawLines.map(rl => baseIndent + rl.trim()));
+    // Preserve base indentation for non-operator lines; blank lines stay empty
+    return rows.flatMap(r => r.rawLines.map(rl => rl.trim() ? baseIndent + rl.trim() : ''));
   }
   const assignRemainderLengths = opRows.filter(r => r.isAssign).map(r => r.assignRemainder.length);
   const maxAssignRemainder = assignRemainderLengths.length ? Math.max(...assignRemainderLengths) : 0;
   const maxNonAssignLhs = opRows.filter(r => !r.isAssign).length ? Math.max(...opRows.filter(r => !r.isAssign).map(r => r.lhs.length)) : 0;
   const assignPrefixLen = 7; // 'assign '
   const targetLhsWidth = Math.max(assignPrefixLen + maxAssignRemainder, maxNonAssignLhs);
-  // console.log(`[alignAssignmentGroup] maxAssignRemainder=${maxAssignRemainder}, targetLhsWidth=${targetLhsWidth}`);
-  const bodies = opRows.map(r => {
-    const lhsDisplay = r.isAssign ? ('assign ' + r.assignRemainder.padEnd(targetLhsWidth - assignPrefixLen)) : r.lhs.padEnd(targetLhsWidth);
-    const firstRhs = r.rhsLines[0];
-    return baseIndent + lhsDisplay + ' ' + r.op + ' ' + firstRhs.trim();
-  });
-  const maxBodyLen = Math.max(...bodies.map(b => b.length));
+  // Max code length (through ';') across single-line assignments — used ONLY to
+  // align trailing comments, never to pad before ';'.
+  const singleLineOpRows = opRows.filter(r => r.rhsLines.length === 1);
+  const maxCodeLen = singleLineOpRows.length
+    ? Math.max(...singleLineOpRows.map(r => {
+        const lhs = r.isAssign
+          ? ('assign ' + r.assignRemainder.padEnd(targetLhsWidth - assignPrefixLen))
+          : r.lhs.padEnd(targetLhsWidth);
+        return (baseIndent + lhs + ' ' + r.op + ' ' + r.rhsLines[0].trim() + ';').length;
+      }))
+    : 0;
   const out: string[] = [];
   rows.forEach(r => {
     if (!r.hasOp) {
-      r.rawLines.forEach(rl => out.push(baseIndent + rl.trim()));
+      r.rawLines.forEach(rl => out.push(rl.trim() ? baseIndent + rl.trim() : ''));
       return;
     }
     const lhsDisplay = r.isAssign ? ('assign ' + r.assignRemainder.padEnd(targetLhsWidth - assignPrefixLen)) : r.lhs.padEnd(targetLhsWidth);
     const prefix = baseIndent + lhsDisplay + ' ' + r.op + ' ';
-    // Only pad single-line assignments to align semicolons
-    const firstLineCore = r.rhsLines.length === 1 
-      ? (prefix + r.rhsLines[0].trim()).padEnd(maxBodyLen)
-      : (prefix + r.rhsLines[0].trim());
-    const firstLine = firstLineCore + (r.rhsLines.length === 1 ? ';' : '') + (r.comment && r.rhsLines.length === 1 ? ' ' + r.comment : (r.rhsLines.length === 1 ? '' : ''));
-    out.push(firstLine);
+    if (r.rhsLines.length === 1) {
+      // Keep ';' tight to the RHS; align trailing comments after the ';'
+      const code = prefix + r.rhsLines[0].trim() + ';';
+      out.push(r.comment ? code.padEnd(maxCodeLen) + ' ' + r.comment : code);
+    } else {
+      out.push(prefix + r.rhsLines[0].trim());
+    }
     if (r.rhsLines.length > 1) {
       // Find the position of the first non-whitespace character in the RHS
       const firstRhsChar = r.rhsLines[0].trimStart()[0] || '';

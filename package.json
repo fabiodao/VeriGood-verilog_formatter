@@ -2,7 +2,7 @@
   "name": "verigood-verilog-formatter",
   "displayName": "VeriGood - SystemVerilog/Verilog Formatter",
   "description": "Verilog/SystemVerilog formatter with granular control over formatting features and UVM testbench support.",
-  "version": "1.8.2",
+  "version": "1.8.3",
   "publisher": "FabioOliveira",
   "icon": "icon.png",
   "author": {
@@ -72,57 +72,57 @@
         "verilogFormatter.indentSize": {
           "type": "number",
           "default": 2,
-          "description": "Spaces per indent level. If not explicitly set, automatically uses the editor's Tab Size from the status bar."
+          "description": "Number of spaces per indentation level. When not explicitly set, the formatter inherits the editor's Tab Size (editor.tabSize)."
         },
         "verilogFormatter.maxBlankLines": {
           "type": "number",
           "default": 1,
-          "description": "Max consecutive blank lines."
+          "description": "Maximum number of consecutive blank lines to keep. Additional blank lines are collapsed."
         },
         "verilogFormatter.alignPortList": {
           "type": "boolean",
           "default": true,
-          "description": "Align ports."
+          "description": "Align the direction, type, range, and name columns of ports in module headers."
         },
         "verilogFormatter.alignParameters": {
           "type": "boolean",
           "default": true,
-          "description": "Align parameter in module headers."
+          "description": "Align parameters and localparams in module headers on their '=' sign."
         },
         "verilogFormatter.wrapPortList": {
           "type": "boolean",
           "default": true,
-          "description": "Wrap long port lists exceeding line length."
+          "description": "Wrap port lists onto multiple lines when they exceed the configured line length."
         },
         "verilogFormatter.lineLength": {
           "type": "number",
           "default": 160,
-          "description": "Maximum line length (guideline 160)."
+          "description": "Maximum line length used as a wrapping guideline."
         },
         "verilogFormatter.removeTrailingWhitespace": {
           "type": "boolean",
           "default": true,
-          "description": "Strip trailing whitespace."
+          "description": "Remove trailing whitespace and ensure blank lines contain no spaces."
         },
         "verilogFormatter.alignAssignments": {
           "type": "boolean",
           "default": true,
-          "description": "Align contiguous assign groups."
+          "description": "Align the '='/'<=' operators of consecutive assign and procedural assignments. Semicolons stay tight to the right-hand side."
         },
         "verilogFormatter.alignWireDeclSemicolons": {
           "type": "boolean",
           "default": true,
-          "description": "Align wire declaration groups."
+          "description": "Align the trailing semicolons of consecutive wire/reg/logic declarations."
         },
         "verilogFormatter.commentColumn": {
           "type": "number",
           "default": 0,
-          "description": "If >0 align trailing // comments starting at this column."
+          "description": "Column at which to align trailing '//' comments. Set to 0 to disable comment-column alignment."
         },
         "verilogFormatter.formatModuleInstantiations": {
           "type": "boolean",
           "default": true,
-          "description": "Format module instantiations with aligned ports and parameters."
+          "description": "Format module instantiations, aligning port and parameter connections."
         },
         "verilogFormatter.formatModuleHeaders": {
           "type": "boolean",
@@ -132,27 +132,27 @@
         "verilogFormatter.indentAlwaysBlocks": {
           "type": "boolean",
           "default": true,
-          "description": "Properly indent content inside always and initial blocks."
+          "description": "Indent the contents of always, initial, and other procedural blocks."
         },
         "verilogFormatter.enforceBeginEnd": {
           "type": "boolean",
           "default": true,
-          "description": "Enforce begin/end blocks for if/else/for statements."
+          "description": "Add begin/end blocks around single-statement if/else/for bodies."
         },
         "verilogFormatter.indentCaseStatements": {
           "type": "boolean",
           "default": true,
-          "description": "Properly indent case statements and case items."
+          "description": "Indent case statements and their case items."
         },
         "verilogFormatter.annotateIfdefComments": {
           "type": "boolean",
           "default": true,
-          "description": "Add comments to `else and `endif directives."
+          "description": "Annotate `else and `endif directives with the originating macro name as a trailing comment."
         },
         "verilogFormatter.enableUVMFormatting": {
           "type": "boolean",
           "default": true,
-          "description": "Auto-detect and apply UVM testbench formatting conventions (100 char lines, always begin/end, no assignment alignment). Indentation uses editor's tab size setting."
+          "description": "Automatically detect UVM/SystemVerilog testbenches and format them with UVM conventions, independent of RTL formatting (no module-level alignment, editor-controlled indentation)."
         },
         "verilogFormatter.uvmLineLength": {
           "type": "number",
@@ -164,7 +164,8 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p .",
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
+    "compile": "npm run clean && tsc -p .",
     "watch": "tsc -w -p .",
     "test:generate": "npm run compile && node tests/generate_expected.js",
     "test": "npm run compile && node tests/run_tests.js",

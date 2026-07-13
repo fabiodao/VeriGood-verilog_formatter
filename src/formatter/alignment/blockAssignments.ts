@@ -86,21 +86,14 @@ function alignCaseItemAssignments(lines: string[]): string[] {
       
       // Align each group
       caseItemGroups.forEach(group => {
-        // Calculate max lengths for alignment
-        // Labels should be padded only if they're on consecutive lines
+        // Pad the label to align colons and the lhs to align operators, but keep
+        // ';' tight to the RHS. Trailing comments are aligned after the ';'.
         const maxLabelLen = Math.max(...group.map(item => item.label.length));
         const maxLhsLen = Math.max(...group.map(item => item.lhs.length));
-        const maxRhsLen = Math.max(...group.map(item => item.rhs.length));
-        
-        group.forEach(item => {
-          // Pad label to align colons
-          const paddedLabel = item.label.padEnd(maxLabelLen);
-          // After the colon, pad the lhs to align operators
-          const paddedLhs = item.lhs.padEnd(maxLhsLen);
-          // Pad RHS to align semicolons and comments
-          const paddedRhs = item.rhs.padEnd(maxRhsLen);
-          const alignedLine = `${item.indent}${paddedLabel}: ${paddedLhs} ${item.op} ${paddedRhs};${item.comment ? ' ' + item.comment : ''}`;
-          result.push(alignedLine);
+        const codes = group.map(item => `${item.indent}${item.label.padEnd(maxLabelLen)}: ${item.lhs.padEnd(maxLhsLen)} ${item.op} ${item.rhs};`);
+        const maxCodeLen = Math.max(...codes.map(c => c.length));
+        group.forEach((item, idx) => {
+          result.push(item.comment ? codes[idx].padEnd(maxCodeLen) + ' ' + item.comment : codes[idx]);
         });
       });
       
@@ -188,15 +181,13 @@ function alignBlockLevelAssignments(lines: string[]): string[] {
       
       // Align the group if we have multiple assignments
       if (assignmentGroup.length > 1) {
+        // Pad LHS to align operators, but keep ';' tight to the RHS. Trailing
+        // comments are aligned after the ';'.
         const maxLhsLen = Math.max(...assignmentGroup.map(item => item.lhs.length));
-        const maxRhsLen = Math.max(...assignmentGroup.map(item => item.rhs.length));
-        
-        // Pad both LHS and RHS to align operators and semicolons
-        assignmentGroup.forEach(item => {
-          const paddedLhs = item.lhs.padEnd(maxLhsLen);
-          const paddedRhs = item.rhs.padEnd(maxRhsLen);
-          const alignedLine = `${item.indent}${paddedLhs} ${item.op} ${paddedRhs};${item.comment ? ' ' + item.comment : ''}`;
-          result.push(alignedLine);
+        const codes = assignmentGroup.map(item => `${item.indent}${item.lhs.padEnd(maxLhsLen)} ${item.op} ${item.rhs};`);
+        const maxCodeLen = Math.max(...codes.map(c => c.length));
+        assignmentGroup.forEach((item, idx) => {
+          result.push(item.comment ? codes[idx].padEnd(maxCodeLen) + ' ' + item.comment : codes[idx]);
         });
       } else if (assignmentGroup.length === 1) {
         // Single assignment - no padding, just pass through
@@ -289,7 +280,6 @@ function handleIfElseAlignment(lines: string[], startIdx: number): { lines: stri
   }
   
   // If we have multiple assignments, align them
-  // console.log(`[handleIfElseAlignment] Found ${assignments.length} assignments`);
   if (assignments.length > 1) {
     // Pad LHS to max length + extra spaces for visual separation
     // The extra spaces depend on the max LHS length:

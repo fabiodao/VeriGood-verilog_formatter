@@ -146,10 +146,15 @@ export function formatModuleHeader(lines: string[], cfg: Config): string[] {
   // Third pass: add aligned comments
   // Pad to maxBaseLength + 1 (for the comma position) before adding comments
   const commentAlignPos = maxBaseLength + 1;  // +1 for comma position
+  // Only reserve the comma column when some port actually carries a comma. With no
+  // commas anywhere (e.g. a single-port list) there is no column to align to, so a
+  // substitute space would just be spurious trailing padding.
+  const anyComma = portEntries.some(e => e.comma);
   portEntries.forEach(e => {
     if (e.comment) {
-      // Pad to comment position, accounting for whether there's a comma
-      const targetLen = e.comma ? commentAlignPos : commentAlignPos - 1;
+      // The comma-less last port gets a substitute space (via commentAlignPos) so
+      // its // stays aligned with the other, comma-bearing ports' comments.
+      const targetLen = anyComma ? commentAlignPos : commentAlignPos - 1;
       e.content = e.content!.padEnd(targetLen) + ' ' + e.comment;
     }
   });
