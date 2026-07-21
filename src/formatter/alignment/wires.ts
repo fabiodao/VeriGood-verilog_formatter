@@ -10,7 +10,7 @@ export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
   // Enhanced: comments and macro directives inside a declaration block do NOT break alignment; they pass through.
   interface DeclRow { indent: string; keyword: string; typeKeyword: string; range: string; name: string; unpackedDim: string; initLines: string[]; hasInit: boolean; comment: string; originalLines: string[]; isMultiNames: boolean; namesList: string; isPassthrough: boolean; }
 
-  function isDeclStart(l: string): boolean { return /^\s*(wire|reg|logic|input|output|inout|integer)\b/.test(l); }
+  function isDeclStart(l: string): boolean { return /^\s*(wire|reg|logic|input|output|inout|integer|genvar)\b/.test(l); }
   function isMacro(l: string): boolean { return /^\s*`(ifn?def|else|endif)\b/.test(l); }
   function isComment(l: string): boolean { return /^\s*\/\//.test(l); }
 
@@ -54,7 +54,7 @@ export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
     const bodyFirst = first.replace(/(\/\/.*)$/, '').trim();
     // Match: (input|output|inout|integer)? (wire|reg|logic)? (signed|unsigned)? [range]? name
     // Note: integer is a standalone type without range
-    const declMatch = bodyFirst.match(/^(input|output|inout|wire|reg|logic|integer)\s*(?:(wire|reg|logic)\s*)?(?:(signed|unsigned)\s*)?(\[[^\]]+\])?\s*(.*)$/);
+    const declMatch = bodyFirst.match(/^(input|output|inout|wire|reg|logic|integer|genvar)\s*(?:(wire|reg|logic)\s*)?(?:(signed|unsigned)\s*)?(\[[^\]]+\])?\s*(.*)$/);
     if (declMatch) {
       const firstKeyword = declMatch[1];
       const secondKeyword = declMatch[2] || '';
@@ -134,7 +134,7 @@ export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
 
   // Check if all declarations are simple (no ranges, no type keywords, no init)
   // In this case, use simplified alignment with just keyword + name
-  const allSimple = decls.every(r => !r.range && !r.typeKeyword && !r.hasInit && !r.isMultiNames);
+  const allSimple = decls.every(r => !r.range && !r.typeKeyword && !r.hasInit && !r.isMultiNames && !r.unpackedDim);
   if (allSimple) {
     // Calculate max name length for simple declarations
     const maxSimpleName = Math.max(...decls.map(r => r.name.length));
@@ -284,7 +284,7 @@ export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
       if (r.typeKeyword) segs.push(expectedTypeKeywordCol);
       if (maxRange) segs.push(expectedRangeCol); // Always add if maxRange > 0
       segs.push(expectedNameCol);
-      let baseDecl = segs.join(' ') + r.unpackedDim;
+      let baseDecl = segs.join(' ');
 
       if (r.hasInit) {
         // Align '=' sign like assign statements
@@ -327,9 +327,22 @@ export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
           if (!alreadyAligned) break;
         }
       } else {
-        const lineBeforeSemi = r.indent + baseDecl;
-        const padding = ' '.repeat(Math.max(0, maxSemicolonPos - lineBeforeSemi.length));
-        const expectedLine = lineBeforeSemi + padding + ';' + (r.comment ? ' ' + r.comment : '');
+        // Unpacked dimension (if any) is placed just before the semicolon so the
+        // ';' lands at maxSemicolonPos and the dims are right-aligned as a column.
+        const dimPart = r.unpackedDim ? r.unpackedDim.trim() : '';
+        const lineBeforeDim = r.indent + baseDecl;
+        const naturalSemiPos = lineBeforeDim.length + (dimPart ? 1 + dimPart.length : 0);
+        const wouldExceedLimit = (naturalSemiPos + 1 + (r.comment ? r.comment.length + 1 : 0)) > cfg.lineLength;
+        let expectedLine: string;
+        if (wouldExceedLimit) {
+          expectedLine = lineBeforeDim + (dimPart ? ' ' + dimPart : '') + ';' + (r.comment ? ' ' + r.comment : '');
+        } else if (dimPart) {
+          const gap = ' '.repeat(Math.max(1, maxSemicolonPos - dimPart.length - lineBeforeDim.length));
+          expectedLine = lineBeforeDim + gap + dimPart + ';' + (r.comment ? ' ' + r.comment : '');
+        } else {
+          const padding = ' '.repeat(Math.max(0, maxSemicolonPos - lineBeforeDim.length));
+          expectedLine = lineBeforeDim + padding + ';' + (r.comment ? ' ' + r.comment : '');
+        }
         if (r.originalLines[0] !== expectedLine) {
           alreadyAligned = false;
           break;
@@ -369,7 +382,7 @@ export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
         out.push(lineBeforeSemi + padding + ';' + (r.comment ? ' ' + r.comment : ''));
       }
     } else {
-      const nameCol = r.name + r.unpackedDim;
+      const nameCol = r.name;
       const segs = [keywordCol];
       if (r.typeKeyword) segs.push(typeKeywordCol);
       if (maxRange) segs.push(rangeCol); // Always add if maxRange > 0, even if empty
@@ -413,14 +426,22 @@ export function alignWireDeclGroup(lines: string[], cfg: Config): string[] {
           });
         }
       } else {
-        const lineBeforeSemi = r.indent + baseDecl;
-        const wouldExceedLimit = (lineBeforeSemi.length + 1 + (r.comment ? r.comment.length + 1 : 0)) > cfg.lineLength;
+        // Unpacked dimension (if any) is placed just before the semicolon so the
+        // ';' lands at maxSemicolonPos and the dims are right-aligned as a column.
+        const dimPart = r.unpackedDim ? r.unpackedDim.trim() : '';
+        const lineBeforeDim = r.indent + baseDecl;
+        const naturalSemiPos = lineBeforeDim.length + (dimPart ? 1 + dimPart.length : 0);
+        const wouldExceedLimit = (naturalSemiPos + 1 + (r.comment ? r.comment.length + 1 : 0)) > cfg.lineLength;
         if (wouldExceedLimit) {
-          const firstLine = lineBeforeSemi + ';' + (r.comment ? ' ' + r.comment : '');
+          const firstLine = lineBeforeDim + (dimPart ? ' ' + dimPart : '') + ';' + (r.comment ? ' ' + r.comment : '');
+          out.push(firstLine);
+        } else if (dimPart) {
+          const gap = ' '.repeat(Math.max(1, maxSemicolonPos - dimPart.length - lineBeforeDim.length));
+          const firstLine = lineBeforeDim + gap + dimPart + ';' + (r.comment ? ' ' + r.comment : '');
           out.push(firstLine);
         } else {
-          const padding = ' '.repeat(Math.max(0, maxSemicolonPos - lineBeforeSemi.length));
-          const firstLine = lineBeforeSemi + padding + ';' + (r.comment ? ' ' + r.comment : '');
+          const padding = ' '.repeat(Math.max(0, maxSemicolonPos - lineBeforeDim.length));
+          const firstLine = lineBeforeDim + padding + ';' + (r.comment ? ' ' + r.comment : '');
           out.push(firstLine);
         }
       }

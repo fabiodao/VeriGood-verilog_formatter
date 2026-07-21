@@ -1,6 +1,5 @@
 module test_declarations;
 
-
 // Test 1: Wire declarations - unaligned semicolons
 wire        a            ;
 wire  [7:0] data         ;
@@ -39,7 +38,7 @@ wire signed [15:0] signed_data;
 reg  signed  [7:0] signed_reg ;
 
 // Test 8: Declarations with packed and unpacked dimensions
-wire  [7:0] mem [0:255]       ;
-reg  [31:0] registers [0:15]  ;
+wire  [7:0] mem        [0:255];
+reg  [31:0] registers   [0:15];
 
 endmodule

@@ -1,6 +1,5 @@
 module test_cases;
 
-
 // Test 1: Simple case statement - unformatted
 always @(*) begin
   case (state)

@@ -7,7 +7,77 @@
 import { Config } from '../types';
 import { alignModuleHeaderParameterLines } from './moduleHeaderParams';
 
+function splitTopLevelCommas(s: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let cur = '';
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === '(' || ch === '[' || ch === '{') depth++;
+    else if (ch === ')' || ch === ']' || ch === '}') depth--;
+    if (ch === ',' && depth === 0) {
+      parts.push(cur.trim());
+      cur = '';
+    } else {
+      cur += ch;
+    }
+  }
+  if (cur.trim().length) parts.push(cur.trim());
+  return parts;
+}
+
+function matchCloseParen(s: string, openIdx: number): number {
+  let depth = 0;
+  for (let i = openIdx; i < s.length; i++) {
+    if (s[i] === '(') depth++;
+    else if (s[i] === ')') {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Explodes a compact / single-line parameterized module header into a canonical
+ * multi-line form so the main formatter can align it. This preserves the `#` for
+ * parameterized headers (which the previous line-oriented parsing could drop) and
+ * emits the `)` / `(` delimiters on their own lines. Skips headers containing
+ * comments or preprocessor directives, or that are already exploded.
+ */
+function preNormalizeParamHeader(lines: string[]): string[] {
+  if (!lines || !lines.length) return lines;
+  const joined = lines.join('\n');
+  if (!/#\s*\(/.test(joined)) return lines;
+  if (/\/\//.test(joined) || /`/.test(joined)) return lines;
+  if (lines.some(l => /^\s*\)\s*(\(|$)/.test(l))) return lines;
+  const flat = lines.map(l => l.trim()).join(' ').replace(/\s+/g, ' ').trim();
+  const mm = flat.match(/^module\s+(\w+)\s*#\s*\(/);
+  if (!mm) return lines;
+  const name = mm[1];
+  const pOpen = mm[0].length - 1;
+  const pClose = matchCloseParen(flat, pOpen);
+  if (pClose === -1) return lines;
+  const paramInner = flat.slice(pOpen + 1, pClose).trim();
+  const rest = flat.slice(pClose + 1).trim();
+  let portInner = '';
+  if (rest.startsWith('(')) {
+    const qClose = matchCloseParen(rest, 0);
+    if (qClose !== -1) portInner = rest.slice(1, qClose).trim();
+  }
+  const out: string[] = [];
+  out.push('module ' + name + ' #(');
+  const params = splitTopLevelCommas(paramInner);
+  params.forEach((p, idx) => out.push('  ' + p + (idx < params.length - 1 ? ',' : '')));
+  out.push(') (');
+  const ports = splitTopLevelCommas(portInner);
+  ports.forEach((p, idx) => out.push('  ' + p + (idx < ports.length - 1 ? ',' : '')));
+  out.push(');');
+  return out;
+}
+
 export function formatModuleHeader(lines: string[], cfg: Config): string[] {
+  lines = preNormalizeParamHeader(lines);
   // Only format module declarations, not function/task declarations
   const firstLine = lines[0]?.trim() || '';
   if (!/^\s*module\b/.test(firstLine)) {
@@ -42,6 +112,14 @@ export function formatModuleHeader(lines: string[], cfg: Config): string[] {
     }
   }
 
+  // Preserve a comment that trails the parameter block's opening `#(`
+  let paramOpenComment = '';
+  if (paramStartIdx !== -1) {
+    const openLineMatch = headerLines[paramStartIdx].match(/#\s*\(\s*(\/\/.*)$/);
+    if (openLineMatch)
+      paramOpenComment = openLineMatch[1].replace(/\/\/\s?/, '// ').trimEnd();
+  }
+
   const moduleDeclLine = headerLines[0].trim();
   const portLinesStart = (paramEndIdx !== -1 ? paramEndIdx + 1 : 1);
   const portLinesEnd = headerLines.length - 1; // exclude closing ');'
@@ -49,7 +127,19 @@ export function formatModuleHeader(lines: string[], cfg: Config): string[] {
     ...(inlinePortAfterParams ? [inlinePortAfterParams] : []),
     ...headerLines.slice(portLinesStart, portLinesEnd)
   ];
-  const cleanedRawPortLines = rawPortLines.filter(l => !/^\s*\(\s*$/.test(l));
+  // Preserve a comment that trails the port block's opening `(`
+  let portOpenComment = '';
+  const cleanedRawPortLines = rawPortLines.filter(l => {
+    const t = l.trim();
+    if (/^\(\s*$/.test(t))
+      return false;
+    const openCommentMatch = t.match(/^\(\s*(\/\/.*)$/);
+    if (openCommentMatch) {
+      portOpenComment = openCommentMatch[1].replace(/\/\/\s?/, '// ').trimEnd();
+      return false;
+    }
+    return true;
+  });
 
   // Per-header macro stack (separate from global) for annotating endif
   const macroStack: string[] = [];
@@ -175,13 +265,13 @@ export function formatModuleHeader(lines: string[], cfg: Config): string[] {
 
   if (hasParameters) {
     const modNameOnly = (moduleDeclLine.match(/^\s*module\s+(\w+)/)?.[1]) || moduleNameBase.replace(/^module\s+/, '').trim();
-    out.push('module ' + modNameOnly + ' #(');
+    out.push('module ' + modNameOnly + ' #(' + (paramOpenComment ? ' ' + paramOpenComment : ''));
     // Keep original lines (not trimmed) to preserve indentation for continuation lines
     const paramBlockLinesRaw = lines.slice(paramStartIdx, paramEndIdx + 1);
     const innerParamLines: string[] = [];
     paramBlockLinesRaw.forEach(pl => {
       const trimmed = pl.trim();
-      if (/#\s*\($/.test(trimmed)) return;
+      if (/#\s*\(\s*(\/\/.*)?$/.test(trimmed)) return;
       if (/^\)\s*(\(|$)/.test(trimmed)) return;
       if (trimmed.length) innerParamLines.push(pl); // Push original, not trimmed
     });
@@ -197,6 +287,11 @@ export function formatModuleHeader(lines: string[], cfg: Config): string[] {
     }
 
     const paramInfos: ParamInfo[] = [];
+    // Track the last `parameter`/`localparam` keyword so bare "NAME = value"
+    // entries can inherit it, and the bracket depth so we only do that at the
+    // top level (not inside a multi-line {..} value).
+    let lastParamKeyword: 'parameter' | 'localparam' = 'parameter';
+    let contDepth = 0;
 
     for (let i = 0; i < innerParamLines.length; i++) {
       const originalLine = innerParamLines[i];
@@ -220,8 +315,15 @@ export function formatModuleHeader(lines: string[], cfg: Config): string[] {
         continue;
       }
 
+      // Track bracket depth (ignoring comments) so multi-line values are not
+      // mistaken for new top-level parameters.
+      const codePart = trimmed.replace(/\/\/.*$/, '');
+      const depthDelta = (codePart.match(/[{([]/g) || []).length - (codePart.match(/[})\]]/g) || []).length;
+      const isTopLevel = contDepth === 0;
+
       // Handle parameter lines
       if (/^(parameter|localparam)\b/.test(trimmed)) {
+        lastParamKeyword = /^localparam\b/.test(trimmed) ? 'localparam' : 'parameter';
         // Extract comment
         const commentMatch = trimmed.match(/(.*?)(\/\/.*)$/);
         const comment = commentMatch ? commentMatch[2].replace(/\/\/\s?/, '// ').trim() : '';
@@ -235,6 +337,24 @@ export function formatModuleHeader(lines: string[], cfg: Config): string[] {
         body = body.replace(/\s*=\s*/, ' = ');
 
         paramInfos.push({ original: originalLine, kind: 'parameter', content: body, hasComma, comment });
+        contDepth += depthDelta;
+        continue;
+      }
+
+      // Handle bare "NAME = value" entries that continue a parameter list which
+      // declared its keyword only once (e.g. `parameter A = 1,` then `B = 2,`).
+      // Only at the top level, so multi-line values remain continuations.
+      if (isTopLevel && /^[A-Za-z_][\w\s\[\]:$.\-]*\s*=(?!=)/.test(trimmed)) {
+        const commentMatch = trimmed.match(/(.*?)(\/\/.*)$/);
+        const comment = commentMatch ? commentMatch[2].replace(/\/\/\s?/, '// ').trim() : '';
+        let body = (commentMatch ? commentMatch[1] : trimmed).trim();
+        const hasComma = /,\s*$/.test(body);
+        body = body.replace(/,\s*$/, '').trim();
+        body = body.replace(/\s*=\s*/, ' = ');
+        body = lastParamKeyword + ' ' + body;
+
+        paramInfos.push({ original: originalLine, kind: 'parameter', content: body, hasComma, comment });
+        contDepth += depthDelta;
         continue;
       }
 
@@ -258,6 +378,7 @@ export function formatModuleHeader(lines: string[], cfg: Config): string[] {
       }
 
       paramInfos.push({ original: originalLine, kind: 'continuation', content: preservedContent, hasComma, comment });
+      contDepth += depthDelta;
     }
 
     // Calculate max content length for comma alignment (only for parameter lines)
@@ -368,12 +489,11 @@ export function formatModuleHeader(lines: string[], cfg: Config): string[] {
           const maxRightLen = Math.max(...allRightParts.map(s => s.length));
           
           const paddedLeft = leftPart.padEnd(maxLeftLen);
-          const paddedRight = rightPart.padEnd(maxRightLen);
-          const baseLine = indentSpaces + paddedLeft + ' = ' + paddedRight + ',';
+          const paddedRightComma = rightPart.padEnd(maxRightLen) + ',';
           if (info.comment) {
-            out.push(baseLine + ' ' + info.comment);
+            out.push(indentSpaces + paddedLeft + ' = ' + paddedRightComma + ' ' + info.comment);
           } else {
-            out.push(baseLine);
+            out.push(indentSpaces + paddedLeft + ' = ' + paddedRightComma);
           }
         } else {
           const paddedContent = info.content.padEnd(maxContentLen);
@@ -429,7 +549,7 @@ export function formatModuleHeader(lines: string[], cfg: Config): string[] {
     const havePorts = formattedPortLines.some(l => l.trim().length);
     if (havePorts && !inlinePortAfterParams) {
       out.push(indentSpaces + ')');
-      out.push(indentSpaces + '(');
+      out.push(indentSpaces + '(' + (portOpenComment ? ' ' + portOpenComment : ''));
     } else {
       out.push(indentSpaces + ')');
     }
@@ -437,7 +557,7 @@ export function formatModuleHeader(lines: string[], cfg: Config): string[] {
     const inlineTailMatch = moduleDeclLine.match(/\(\s*(.*)$/);
     let inlineTail = '';
     if (inlineTailMatch) inlineTail = inlineTailMatch[1].replace(/\)\s*;?\s*$/, '').trim();
-    out.push(moduleNameBase + ' (');
+    out.push(moduleNameBase + '(' + (portOpenComment ? ' ' + portOpenComment : ''));
     if (inlineTail) formattedPortLines.unshift(inlineTail.replace(/,\s*$/, ',').trim());
   }
 

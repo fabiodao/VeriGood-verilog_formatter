@@ -14,7 +14,6 @@ module test_params_ports #(
   output                 valid
   );
 
-
 endmodule
 
 // Test 3: Module with localparam - unaligned
@@ -27,8 +26,9 @@ module with_localparam;
 endmodule
 
 // Test 4: Module with parameter and localparam mixed
-module mixed_params (
+module mixed_params #(
   parameter WIDTH = 8
+  )
   );
 
   localparam HALF_WIDTH   = WIDTH/2;
@@ -36,7 +36,7 @@ module mixed_params (
 endmodule
 
 // Test 5: Ports with different types - unaligned
-module varied_ports (
+module varied_ports(
   input  wire        clk  ,
   input  wire        rst_n,
   inout        [7:0] bidir,
@@ -47,7 +47,7 @@ module varied_ports (
 endmodule
 
 // Test 6: Ports with packed arrays
-module packed_ports (
+module packed_ports(
   input      [7:0] [3:0] packed_in ,
   output reg [3:0] [7:0] packed_out
   );

@@ -2,7 +2,7 @@
   "name": "verigood-verilog-formatter",
   "displayName": "VeriGood - SystemVerilog/Verilog Formatter",
   "description": "Verilog/SystemVerilog formatter with granular control over formatting features and UVM testbench support.",
-  "version": "1.8.3",
+  "version": "1.9.0",
   "publisher": "FabioOliveira",
   "icon": "icon.png",
   "author": {
@@ -43,6 +43,9 @@
     "onLanguage:systemverilog"
   ],
   "main": "./dist/extension.js",
+  "bin": {
+    "verigood-fmt": "./bin/verigood-fmt.js"
+  },
   "contributes": {
     "languages": [
       {
@@ -169,6 +172,9 @@
     "watch": "tsc -w -p .",
     "test:generate": "npm run compile && node tests/generate_expected.js",
     "test": "npm run compile && node tests/run_tests.js",
+    "format": "node bin/verigood-fmt.js",
+    "format:check": "node bin/verigood-fmt.js --check",
+    "build:cli": "npm run compile && node esbuild.config.js",
     "prepackage": "npm test",
     "package": "vsce package",
     "prepublish": "npm test",
@@ -177,6 +183,7 @@
   "devDependencies": {
     "@types/node": "^20.11.30",
     "@types/vscode": "^1.105.0",
+    "esbuild": "^0.28.1",
     "typescript": "^5.4.0"
   }
 }

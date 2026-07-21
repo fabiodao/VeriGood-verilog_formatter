@@ -25,45 +25,91 @@ export interface Config {
 }
 
 /**
+ * Default configuration values.
+ *
+ * This is the single source of truth for defaults. It mirrors the "default"
+ * fields declared in package.json (contributes.configuration) and is reused by
+ * both the VS Code extension (via {@link getConfig}) and the standalone CLI.
+ */
+export const DEFAULT_CONFIG: Required<Config> = {
+  indentSize: 2,
+  maxBlankLines: 1,
+  alignPortList: true,
+  alignParameters: true,
+  wrapPortList: true,
+  lineLength: 160,
+  removeTrailingWhitespace: true,
+  alignAssignments: true,
+  alignWireDeclSemicolons: true,
+  commentColumn: 0,
+  formatModuleInstantiations: true,
+  formatModuleHeaders: true,
+  indentAlwaysBlocks: true,
+  enforceBeginEnd: true,
+  indentCaseStatements: true,
+  annotateIfdefComments: true,
+  enableUVMFormatting: true,
+  uvmLineLength: 100
+};
+
+/**
+ * Merges a partial set of overrides onto {@link DEFAULT_CONFIG}.
+ *
+ * Pure function with no VS Code dependency, so it can be used from any context
+ * (the extension, the CLI, or tests). Keys whose value is `undefined` are
+ * ignored so that unspecified options keep their default.
+ */
+export function resolveConfig(overrides: Partial<Config> = {}): Config {
+  const cfg: Config = { ...DEFAULT_CONFIG };
+  (Object.keys(overrides) as (keyof Config)[]).forEach(key => {
+    const value = overrides[key];
+    if (value !== undefined) {
+      (cfg as Record<keyof Config, unknown>)[key] = value;
+    }
+  });
+  return cfg;
+}
+
+/**
  * Retrieves configuration from VS Code settings
  * @param options Optional formatting options from VS Code (includes editor tabSize)
  */
 export function getConfig(options?: vscode.FormattingOptions): Config {
   const wcfg = vscode.workspace.getConfiguration('verilogFormatter');
-  
+
   // Get indentSize from config, or use editor's tabSize if not explicitly set
   let indentSize: number;
   const configuredIndentSize = wcfg.inspect<number>('indentSize');
-  if (configuredIndentSize && (configuredIndentSize.workspaceValue !== undefined || 
-      configuredIndentSize.globalValue !== undefined || 
+  if (configuredIndentSize && (configuredIndentSize.workspaceValue !== undefined ||
+      configuredIndentSize.globalValue !== undefined ||
       configuredIndentSize.workspaceFolderValue !== undefined)) {
     // User has explicitly set indentSize, use it
-    indentSize = wcfg.get<number>('indentSize', 2);
+    indentSize = wcfg.get<number>('indentSize', DEFAULT_CONFIG.indentSize);
   } else {
     // Not explicitly set, use editor's tabSize from status bar
-    indentSize = options?.tabSize !== undefined ? options.tabSize : 2;
+    indentSize = options?.tabSize !== undefined ? options.tabSize : DEFAULT_CONFIG.indentSize;
   }
-  
-  return {
+
+  return resolveConfig({
     indentSize,
-    maxBlankLines: wcfg.get<number>('maxBlankLines', 1),
-    alignPortList: wcfg.get<boolean>('alignPortList', true),
-    alignParameters: wcfg.get<boolean>('alignParameters', true),
-    wrapPortList: wcfg.get<boolean>('wrapPortList', true),
-    lineLength: wcfg.get<number>('lineLength', 160),
-    removeTrailingWhitespace: wcfg.get<boolean>('removeTrailingWhitespace', true),
-    alignAssignments: wcfg.get<boolean>('alignAssignments', true),
-    alignWireDeclSemicolons: wcfg.get<boolean>('alignWireDeclSemicolons', true),
-    commentColumn: wcfg.get<number>('commentColumn', 0),
-    formatModuleInstantiations: wcfg.get<boolean>('formatModuleInstantiations', true),
-    formatModuleHeaders: wcfg.get<boolean>('formatModuleHeaders', true),
-    indentAlwaysBlocks: wcfg.get<boolean>('indentAlwaysBlocks', true),
-    enforceBeginEnd: wcfg.get<boolean>('enforceBeginEnd', true),
-    indentCaseStatements: wcfg.get<boolean>('indentCaseStatements', true),
-    annotateIfdefComments: wcfg.get<boolean>('annotateIfdefComments', true),
-    enableUVMFormatting: wcfg.get<boolean>('enableUVMFormatting', true),
-    uvmLineLength: wcfg.get<number>('uvmLineLength', 100)
-  };
+    maxBlankLines: wcfg.get<number>('maxBlankLines', DEFAULT_CONFIG.maxBlankLines),
+    alignPortList: wcfg.get<boolean>('alignPortList', DEFAULT_CONFIG.alignPortList),
+    alignParameters: wcfg.get<boolean>('alignParameters', DEFAULT_CONFIG.alignParameters),
+    wrapPortList: wcfg.get<boolean>('wrapPortList', DEFAULT_CONFIG.wrapPortList),
+    lineLength: wcfg.get<number>('lineLength', DEFAULT_CONFIG.lineLength),
+    removeTrailingWhitespace: wcfg.get<boolean>('removeTrailingWhitespace', DEFAULT_CONFIG.removeTrailingWhitespace),
+    alignAssignments: wcfg.get<boolean>('alignAssignments', DEFAULT_CONFIG.alignAssignments),
+    alignWireDeclSemicolons: wcfg.get<boolean>('alignWireDeclSemicolons', DEFAULT_CONFIG.alignWireDeclSemicolons),
+    commentColumn: wcfg.get<number>('commentColumn', DEFAULT_CONFIG.commentColumn),
+    formatModuleInstantiations: wcfg.get<boolean>('formatModuleInstantiations', DEFAULT_CONFIG.formatModuleInstantiations),
+    formatModuleHeaders: wcfg.get<boolean>('formatModuleHeaders', DEFAULT_CONFIG.formatModuleHeaders),
+    indentAlwaysBlocks: wcfg.get<boolean>('indentAlwaysBlocks', DEFAULT_CONFIG.indentAlwaysBlocks),
+    enforceBeginEnd: wcfg.get<boolean>('enforceBeginEnd', DEFAULT_CONFIG.enforceBeginEnd),
+    indentCaseStatements: wcfg.get<boolean>('indentCaseStatements', DEFAULT_CONFIG.indentCaseStatements),
+    annotateIfdefComments: wcfg.get<boolean>('annotateIfdefComments', DEFAULT_CONFIG.annotateIfdefComments),
+    enableUVMFormatting: wcfg.get<boolean>('enableUVMFormatting', DEFAULT_CONFIG.enableUVMFormatting),
+    uvmLineLength: wcfg.get<number>('uvmLineLength', DEFAULT_CONFIG.uvmLineLength)
+  });
 }
 
 /**

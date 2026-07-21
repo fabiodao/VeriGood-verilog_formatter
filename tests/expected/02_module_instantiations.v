@@ -1,6 +1,5 @@
 module test_instantiations;
 
-
 // Test 1: Simple instance on single line
 simple_module u_simple(
   );
@@ -39,8 +38,12 @@ cpu #(
 
 // Test 5: Multiple instances
 fifo u_fifo1(
+  .clk  (clk1 ),
+  .data (data1)
   );
 fifo u_fifo2(
+  .clk  (clk2 ),
+  .data (data2)
   );
 
 // Test 6: Instance with mixed short and long port names

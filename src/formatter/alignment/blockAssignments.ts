@@ -5,6 +5,7 @@
  */
 
 import { Config } from '../types';
+import { splitTopLevelAssign } from '../utils/assignments';
 
 interface CaseItemAssignment {
   indent: string;
@@ -55,7 +56,7 @@ function alignCaseItemAssignments(lines: string[]): string[] {
           const indent = itemLine.match(/^(\s*)/)?.[1] || '';
           
           // Parse the assignment
-          const assignMatch = assignment.match(/^(.*?)\s*(<=|=)\s*(.*)$/);
+          const assignMatch = splitTopLevelAssign(assignment);
           if (assignMatch) {
             const lhs = assignMatch[1].trim();
             const op = assignMatch[2];
@@ -300,16 +301,148 @@ function handleIfElseAlignment(lines: string[], startIdx: number): { lines: stri
   return { lines: collectedLines, endIdx: i - 1 };
 }
 
+// Matches a simple procedural assignment target: an identifier with optional
+// part-selects/bit-selects and hierarchical (dot) references. Anything more
+// exotic is left untouched so we never mangle unusual left-hand sides.
+const BLOCK_LVALUE = /^[A-Za-z_][A-Za-z0-9_$]*(?:\s*\[[^\]]*\]|\.[A-Za-z_$][A-Za-z0-9_$]*)*$/;
+
+interface ParsedBlockAssignment {
+  indent: string;
+  lhs: string;
+  op: string;
+  rhs: string;
+  gap: string;
+  comment: string;
+}
+
+function parseBlockAssignment(rawLine: string): ParsedBlockAssignment | null {
+  const indent = rawLine.match(/^(\s*)/)?.[1] || '';
+  const m = splitTopLevelAssign(rawLine.trim());
+  if (!m) return null;
+  const lhs = m[1].trim();
+  if (!BLOCK_LVALUE.test(lhs)) return null;
+  // Require exactly one statement: no ';' before the terminator, then only
+  // an optional trailing comment. This skips multi-statement lines like
+  // "a = 0; b = 0;" which must not be column-aligned on just their first '='.
+  const cm = m[3].match(/^([^;]*);(\s*)(\/\/.*)?$/);
+  if (!cm) return null;
+  const rhs = cm[1].trim();
+  if (rhs === '') return null;
+  // Preserve the original spacing between ';' and any trailing comment so the
+  // realignment only shifts the LHS, keeping the author's comment layout.
+  return { indent, lhs, op: m[2], rhs, gap: cm[3] ? cm[2] : '', comment: cm[3] || '' };
+}
+
+function scanBlockAssignRhs(s: string, depth: number): { depth: number; stop: string | null } {
+  // Advance bracket depth over one RHS fragment (strings and // comments
+  // respected). Stops early at a top-level ';' (statement end) or ',' (which
+  // means this is a list body such as a typedef enum, not a single-expression
+  // assignment). Returns { depth, stop } where stop is ";", "," or null.
+  let inStr = false;
+  for (let k = 0; k < s.length; k++) {
+    const ch = s[k];
+    if (inStr) {
+      if (ch === '\\') { k++; continue; }
+      if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') { inStr = true; continue; }
+    if (ch === '/' && s[k + 1] === '/') break;
+    if (ch === '(' || ch === '[' || ch === '{') { depth++; continue; }
+    if (ch === ')' || ch === ']' || ch === '}') { depth--; continue; }
+    if (depth === 0 && ch === ';') return { depth, stop: ';' };
+    if (depth === 0 && ch === ',') return { depth, stop: ',' };
+  }
+  return { depth, stop: null };
+}
+
+function reindentMultilineBlockAssignment(lines: string[], i: number): { out: string[]; next: number } | null {
+  const raw = lines[i];
+  const indent = raw.match(/^(\s*)/)?.[1] || '';
+  const m = splitTopLevelAssign(raw.trim());
+  if (!m) return null;
+  const lhs = m[1].trim();
+  if (!BLOCK_LVALUE.test(lhs)) return null;
+  const firstRhs = m[3];
+  if (firstRhs === '') return null;
+  // The first line must not terminate the statement (single-line assignments
+  // are handled above) and must not carry a top-level ',' (that marks a list
+  // body such as a typedef enum member, e.g. "NAME = 4'h0,").
+  let st = scanBlockAssignRhs(firstRhs, 0);
+  if (st.stop) return null;
+  let depth = st.depth;
+  if (depth < 0) return null;
+  const cont: string[] = [];
+  let j = i + 1;
+  let closed = false;
+  while (j < lines.length && cont.length < 64) {
+    const t = lines[j].trim();
+    if (t === '' || /^[)\]}]*\s*(begin|end|endcase|else|if|for|while|case[xz]?|default|assign|always|initial)\b/.test(t)) break;
+    st = scanBlockAssignRhs(t, depth);
+    if (st.stop === ',') return null;
+    cont.push(t);
+    j++;
+    if (st.stop === ';') { closed = true; break; }
+    depth = st.depth;
+    if (depth < 0) return null;
+  }
+  if (!closed || cont.length === 0) return null;
+  // Continuation lines align to the RHS start column, matching the module-level
+  // assign wrapper.
+  const contCol = indent.length + lhs.length + 1 + m[2].length + 1;
+  const pad = ' '.repeat(contCol);
+  const out = [`${indent}${lhs} ${m[2]} ${firstRhs}`];
+  cont.forEach(t => out.push(pad + t));
+  return { out, next: j };
+}
+
+function alignConsecutiveBlockAssignments(lines: string[]): string[] {
+  const result: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const parsed = parseBlockAssignment(lines[i]);
+    if (!parsed) {
+      const ml = reindentMultilineBlockAssignment(lines, i);
+      if (ml) {
+        ml.out.forEach(l => result.push(l));
+        i = ml.next;
+        continue;
+      }
+      result.push(lines[i]);
+      i++;
+      continue;
+    }
+    const group = [parsed];
+    let j = i + 1;
+    while (j < lines.length) {
+      const next = parseBlockAssignment(lines[j]);
+      if (!next || next.indent !== parsed.indent) break;
+      group.push(next);
+      j++;
+    }
+    if (group.length > 1) {
+      const maxLhs = Math.max(...group.map(g => g.lhs.length));
+      group.forEach(g => {
+        result.push(`${g.indent}${g.lhs.padEnd(maxLhs)} ${g.op} ${g.rhs};${g.gap}${g.comment}`);
+      });
+    } else {
+      result.push(lines[i]);
+    }
+    i = j;
+  }
+  return result;
+}
+
 /**
  * Aligns assignments within case items and blocks
  * This is a post-processing step that operates on already-indented code
  */
 export function alignBlockAssignments(lines: string[], cfg: Config): string[] {
-  // First pass: align case item assignments
-  let aligned = alignCaseItemAssignments(lines);
-  
-  // Second pass: align block-level assignments
-  aligned = alignBlockLevelAssignments(aligned);
-  
-  return aligned;
+  // Align case-item columns, then column-align runs of consecutive, same-indent
+  // plain =/<= assignments inside procedural blocks. Splitting uses
+  // splitTopLevelAssign, so ':' from ternaries/part-selects and comparison ops
+  // (>=, ==, !=) in the LHS/RHS are handled correctly.
+  const aligned = alignCaseItemAssignments(lines);
+  if (cfg && cfg.alignAssignments === false) return aligned;
+  return alignConsecutiveBlockAssignments(aligned);
 }

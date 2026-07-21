@@ -4,6 +4,8 @@
  * Aligns assignment statements (assign, blocking/non-blocking assignments)
  */
 
+import { splitTopLevelAssign } from '../utils/assignments';
+
 export function alignAssignmentGroup(lines: string[]): string[] {
   interface Row { rawLines: string[]; lhs: string; op: string; rhsLines: string[]; comment: string; hasOp: boolean; isAssign: boolean; assignRemainder: string; endsWithSemicolon: boolean; }
   // Extract base indent from first non-comment/non-ifdef line
@@ -45,7 +47,7 @@ export function alignAssignmentGroup(lines: string[]): string[] {
     const commentMatch = first.match(/(.*?)(\/\/.*)$/);
     const commentFirst = commentMatch ? commentMatch[2].replace(/\/\/\s?/, '// ').trim() : '';
     const bodyFirst = (commentMatch ? commentMatch[1] : first).trim();
-    const m = bodyFirst.match(/^(.*?)\s*(<=|=)\s*(.*)$/);
+    const m = splitTopLevelAssign(bodyFirst);
     if (m) {
       const lhsRaw = m[1].trim();
       const isAssign = /^assign\b/.test(lhsRaw);
@@ -104,9 +106,8 @@ export function alignAssignmentGroup(lines: string[]): string[] {
       out.push(prefix + r.rhsLines[0].trim());
     }
     if (r.rhsLines.length > 1) {
-      // Find the position of the first non-whitespace character in the RHS
-      const firstRhsChar = r.rhsLines[0].trimStart()[0] || '';
-      const contIndentLen = firstRhsChar === '(' ? prefix.length + 1 : prefix.length;
+      // Continuation lines align to the RHS start column (just past '= ').
+      const contIndentLen = prefix.length;
       const contIndentSpaces = ' '.repeat(contIndentLen);
       const lastIdx = r.rhsLines.length - 1;
       

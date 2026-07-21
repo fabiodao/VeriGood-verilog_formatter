@@ -4,6 +4,8 @@
  * Handles indentation for always/always_ff/always_comb/always_latch blocks
  */
 
+import { normalizeEqSpacing } from '../utils/assignments';
+
 export function indentAlwaysBlocks(lines: string[], indentSize: number): string[] {
   const unit = ' '.repeat(indentSize);
   const result: string[] = [];
@@ -11,6 +13,8 @@ export function indentAlwaysBlocks(lines: string[], indentSize: number): string[
   let alwaysIndent = '';
   let insideCase = false;
   let beginEndStack: string[] = []; // Stack to track begin/end pairs
+  let funcTaskDepth = 0;
+  const funcDirectiveStack: string[] = [];
 
   // First pass: merge 'end' and 'else' on same line when inside always blocks
   const mergedLines: string[] = [];
@@ -69,6 +73,78 @@ export function indentAlwaysBlocks(lines: string[], indentSize: number): string[
     mergedLines.push(line);
   }
 
+  // Find the indentation of the nearest non-blank, non-directive neighbor line
+  // (looking forward first, then backward) for aligning a directive.
+  function neighborIndentForDirective(idx: number): string {
+    for (let j = idx + 1; j < mergedLines.length; j++) {
+      const t = mergedLines[j].trim();
+      if (t === '' || t.startsWith('`')) continue;
+      const m = mergedLines[j].match(/^(\s*)/);
+      return m ? m[1] : '';
+    }
+    for (let j = idx - 1; j >= 0; j--) {
+      const t = mergedLines[j].trim();
+      if (t === '' || t.startsWith('`')) continue;
+      const m = mergedLines[j].match(/^(\s*)/);
+      return m ? m[1] : '';
+    }
+    return '';
+  }
+
+  // Determine the indentation for an ifdef-family directive that lives inside a
+  // function/task body (returns null to signal "leave line untouched").
+  function directiveIndentInFunc(idx: number, dirTrimmed: string): string | null {
+    const nextNonBlank = mergedLines.slice(idx + 1).find(l => l.trim() !== '');
+    if (nextNonBlank && /^\s*[\)\}]/.test(nextNonBlank)) {
+      return null;
+    }
+    if (/^`endif/.test(dirTrimmed)) {
+      return funcDirectiveStack.length > 0 ? funcDirectiveStack.pop()! : neighborIndentForDirective(idx);
+    }
+    if (/^`(else|elsif)/.test(dirTrimmed)) {
+      return funcDirectiveStack.length > 0 ? funcDirectiveStack[funcDirectiveStack.length - 1] : neighborIndentForDirective(idx);
+    }
+    const ind = neighborIndentForDirective(idx);
+    funcDirectiveStack.push(ind);
+    return ind;
+  }
+
+  // Detect whether an if/for/else line carries its body inline on the same line
+  // (e.g. "if (x) y = 1;") rather than expecting a following single statement.
+  function hasInlineBody(t: string): boolean {
+    let s = t.replace(/\/\/.*$/, '').trim();
+    s = s.replace(/^end\s+/, '');
+    const isElseIf = /^else\s+if\b/.test(s);
+    if (/^else\b/.test(s) && !isElseIf) {
+      const rest = s.replace(/^else\b\s*/, '');
+      return rest !== '' && !/^begin\b/.test(rest);
+    }
+    const m = s.match(/\b(if|for)\s*\(/);
+    if (!m) return false;
+    const openIdx = s.indexOf('(', m.index);
+    let depth = 0;
+    let closeIdx = -1;
+    for (let k = openIdx; k < s.length; k++) {
+      if (s[k] === '(') depth++;
+      else if (s[k] === ')') {
+        depth--;
+        if (depth === 0) { closeIdx = k; break; }
+      }
+    }
+    if (closeIdx === -1) return false;
+    const rest = s.slice(closeIdx + 1).trim();
+    return rest !== '' && !/^begin\b/.test(rest);
+  }
+
+  // Net begin/end count on a line (comment- and string-aware).
+  function countBeginEnd(t: string): number {
+    let s = t.replace(/\/\/.*$/, '');
+    s = s.replace(/"(?:\\.|[^"\\])*"/g, '""');
+    const b = (s.match(/\bbegin\b/g) || []).length;
+    const e = (s.match(/\bend\b/g) || []).length;
+    return b - e;
+  }
+
   // Second pass: perform normal indentation on merged lines
   let expectSingleStatement = false; // Track if next line should be indented for single-statement block
   let singleStatementDepth = 0; // Track depth of nested single-statement blocks
@@ -76,6 +152,16 @@ export function indentAlwaysBlocks(lines: string[], indentSize: number): string[
   for (let i = 0; i < mergedLines.length; i++) {
     const line = mergedLines[i];
     const trimmed = line.trim();
+
+    // Track function/task scope (independent of always blocks)
+    if (/^(?:virtual\s+)?(?:automatic\s+|static\s+)?(?:function|task)\b/.test(trimmed)) {
+      funcTaskDepth++;
+    } else if (/^end(?:function|task)\b/.test(trimmed)) {
+      funcTaskDepth = Math.max(0, funcTaskDepth - 1);
+      if (funcTaskDepth === 0) {
+        funcDirectiveStack.length = 0;
+      }
+    }
 
     // Handle ifdef directives - pass through but maintain always block tracking
     if (/^`(ifdef|ifndef|elsif|else|endif)/.test(trimmed)) {
@@ -88,6 +174,14 @@ export function indentAlwaysBlocks(lines: string[], indentSize: number): string[
         result.push(ifdefIndent + trimmed);
         // Reset expectSingleStatement for ifdef directives
         expectSingleStatement = false;
+      } else if (funcTaskDepth > 0 && !insideCase) {
+        // Inside a function/task: align the directive with neighboring code
+        const dirIndent = directiveIndentInFunc(i, trimmed);
+        if (dirIndent === null) {
+          result.push(line);
+        } else {
+          result.push(dirIndent + trimmed);
+        }
       } else {
         result.push(line);
       }
@@ -132,7 +226,7 @@ export function indentAlwaysBlocks(lines: string[], indentSize: number): string[
           } else if (beginEndStack.length === 1) {
             // Stack has only 1 item (the always begin) - this end closes the always block
             insideAlways = false;
-            result.push(line);
+            result.push(alwaysIndent + trimmed);
             continue;
           } else {
             // Stack is empty - this shouldn't happen but handle it
@@ -184,11 +278,21 @@ export function indentAlwaysBlocks(lines: string[], indentSize: number): string[
       // This happens for lines like "else begin" or "else if (...) begin" or "for (...) begin"
       const hasBegin = /\bbegin\b/.test(trimmed);
       if (hasBegin) {
-        beginEndStack.push('begin');
+        if (hasEnd) {
+          beginEndStack.push('begin');
+        } else {
+          // A line may open more than one begin (e.g. "if (x) begin" plus a nested
+          // structure); push one entry per net begin so depth stays accurate.
+          const netBegin = countBeginEnd(trimmed);
+          for (let bz = 0; bz < netBegin; bz++) {
+            beginEndStack.push('begin');
+          }
+        }
         expectSingleStatement = false; // Reset if we have a begin
       } else if (isIf || isElse || isFor) {
-        // If/else/for without begin - next line should be a single statement needing extra indent
-        expectSingleStatement = true;
+        // If/else/for without begin - next line should be a single statement needing extra indent,
+        // unless the body is already inline on this same line.
+        expectSingleStatement = !hasInlineBody(trimmed);
       }
 
       // Format the line with the calculated indentation
@@ -196,10 +300,8 @@ export function indentAlwaysBlocks(lines: string[], indentSize: number): string[
         // Normalize spacing around assignment operators (but not for for loops)
         let normalizedTrimmed = trimmed;
         if (!/^\s*for\s*\(/.test(trimmed) && !/^\s*assign\b/.test(trimmed)) {
-          // Add spaces around = (but not ==, !=, <=, >=, and not for assign statements)
-          normalizedTrimmed = normalizedTrimmed.replace(/([^=!<>])\s*=\s*([^=])/g, '$1 = $2');
-          // Add spaces around <= (but not <<=)
-          normalizedTrimmed = normalizedTrimmed.replace(/([^<])\s*<=\s*/g, '$1 <= ');
+          // Normalize spacing around = and <= (comment/string-aware)
+          normalizedTrimmed = normalizeEqSpacing(normalizedTrimmed);
         }
         
         const newLine = currentLineIndent + normalizedTrimmed;

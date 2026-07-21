@@ -58,33 +58,29 @@ export function formatModuleInstantiations(lines: string[], indentSize: number):
       // Determine proper indentation from surrounding context
       // Look at nearby wire/assign/reg declarations to determine module-level indentation
       // But if inside if/else/always blocks, preserve the current indentation
-      let foundContext = false;
-      let insideControlBlock = false;
-
+      // An enclosing block opener (begin/always/if/for/generate/...) indents this
+      // instantiation one unit deeper; a module-level declaration matches its own
+      // indent; a closing keyword (end/endgenerate/...) stops the search.
       for (let lookback = i - 1; lookback >= Math.max(0, i - 10); lookback--) {
         const prevLine = lines[lookback];
         const prevTrimmed = prevLine.trim();
         // Skip blank lines and comments
         if (!prevTrimmed || prevTrimmed.startsWith('//')) continue;
-
-        // Check if we're inside a control block (if/else/always/begin)
-        if (/^\s*(begin|always|always_ff|always_comb|always_latch|initial|if|else)\b/.test(prevLine)) {
-          insideControlBlock = true;
+        const codePart = prevTrimmed.replace(/\/\/.*$/, '').trim();
+        if (!codePart) continue;
+        if (/^(end|endgenerate|endcase|endfunction|endtask|endmodule)\b/.test(codePart)) {
           break;
         }
-
-        // Look for declarations that indicate module-level indentation
-        if (/^\s*(wire|reg|logic|assign|input|output|inout|parameter|localparam)\b/.test(prevLine)) {
-          const contextIndent = (prevLine.match(/^(\s*)/)?.[1]) || '';
-          baseIndent = contextIndent;
-          foundContext = true;
+        const isBlockOpener = /^(begin|always|always_ff|always_comb|always_latch|initial|if|else|for|while|foreach|generate)\b/.test(codePart) || /\bbegin\b(\s*:\s*\w+)?$/.test(codePart);
+        if (isBlockOpener) {
+          const openerIndent = (prevLine.match(/^(\s*)/)?.[1]) || '';
+          baseIndent = openerIndent + unit;
           break;
         }
-      }
-
-      // If inside control block, keep original indentation from the instantiation line
-      if (insideControlBlock) {
-        baseIndent = match[1];
+        if (/^(wire|reg|logic|assign|input|output|inout|parameter|localparam)\b/.test(codePart)) {
+          baseIndent = (prevLine.match(/^(\s*)/)?.[1]) || '';
+          break;
+        }
       }
 
       // Collect the entire instantiation

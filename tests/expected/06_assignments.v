@@ -1,6 +1,5 @@
 module test_assignments;
 
-
 // Test 1: Simple assignments - unaligned
 assign a             = b+c;
 assign data          = result;

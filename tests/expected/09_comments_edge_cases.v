@@ -1,6 +1,5 @@
 module test_edge_cases;
 
-
 // Test 1: Preserve block comments
 /* This is a
    multi-line

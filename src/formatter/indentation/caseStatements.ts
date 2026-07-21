@@ -4,6 +4,8 @@
  * Handles indentation for case/casex/casez statements and their items
  */
 
+import { normalizeEqSpacing } from '../utils/assignments';
+
 export function indentCaseStatements(lines: string[], indentSize: number): string[] {
   const unit = ' '.repeat(indentSize);
   const result: string[] = [];
@@ -26,6 +28,42 @@ export function indentCaseStatements(lines: string[], indentSize: number): strin
   // Track if we're inside an always block to properly indent top-level case statements
   let alwaysBlockIndent = '';
 
+  // Snapshot/restore of the case-tracking state around `ifdef/`else/`endif branches,
+  // so alternative preprocessor branches are indented as if they were the same code.
+  type CaseState = {
+    blockDepth: number;
+    caseStack: { caseIndent: string; inCaseItem: boolean; caseItemIndent: string; }[];
+    blockDepthAtCaseStart: number[];
+    indentStack: string[];
+    inMultiLineIf: boolean;
+    multiLineIfIndent: string;
+    lastIndentAdjustment: number;
+  };
+  const ifdefStateStack: CaseState[] = [];
+  function snapshotCaseState(): CaseState {
+    return {
+      blockDepth,
+      caseStack: caseStack.map(e => ({ ...e })),
+      blockDepthAtCaseStart: blockDepthAtCaseStart.slice(),
+      indentStack: indentStack.slice(),
+      inMultiLineIf,
+      multiLineIfIndent,
+      lastIndentAdjustment
+    };
+  }
+  function restoreCaseState(s: CaseState): void {
+    blockDepth = s.blockDepth;
+    caseStack.length = 0;
+    for (const e of s.caseStack) caseStack.push({ ...e });
+    blockDepthAtCaseStart.length = 0;
+    for (const e of s.blockDepthAtCaseStart) blockDepthAtCaseStart.push(e);
+    indentStack.length = 0;
+    for (const e of s.indentStack) indentStack.push(e);
+    inMultiLineIf = s.inMultiLineIf;
+    multiLineIfIndent = s.multiLineIfIndent;
+    lastIndentAdjustment = s.lastIndentAdjustment;
+  }
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
@@ -42,6 +80,28 @@ export function indentCaseStatements(lines: string[], indentSize: number): strin
     // Safety: prevent blockDepth from going negative
     if (blockDepth < 0) blockDepth = 0;
 
+    // Preprocessor directives: align with surrounding case/block context and keep
+    // each branch from corrupting the shared block-tracking state.
+    if (/^\s*`(ifdef|ifndef|elsif|else|endif)\b/.test(trimmed)) {
+      let dirIndent: string;
+      if (caseStack.length > 0) {
+        const ci = caseStack[caseStack.length - 1];
+        dirIndent = indentStack.length > 0 ? indentStack[indentStack.length - 1] : ci.caseIndent + unit + unit;
+      } else {
+        dirIndent = currentIndent;
+      }
+      if (/^\s*`(ifdef|ifndef)\b/.test(trimmed)) {
+        ifdefStateStack.push(snapshotCaseState());
+      } else if (/^\s*`(else|elsif)\b/.test(trimmed)) {
+        if (ifdefStateStack.length > 0) restoreCaseState(ifdefStateStack[ifdefStateStack.length - 1]);
+      } else if (ifdefStateStack.length > 0) {
+        restoreCaseState(ifdefStateStack.pop()!);
+      }
+      result.push(dirIndent + trimmed);
+      lastIndentAdjustment = 0;
+      continue;
+    }
+
     // When not inside a case statement, pass through lines unchanged
     // (enforceIfBlocks has already handled proper indentation for if/for blocks)
     if (caseStack.length === 0 && !/^\s*case[xz]?\b/.test(line)) {
@@ -51,8 +111,12 @@ export function indentCaseStatements(lines: string[], indentSize: number): strin
       // Track blockDepth and indentStack for knowing proper indentation when we enter case statements
       // Handle "end else begin" - this opens a new block context
       if (/\bend\s+else\s+begin\b/.test(line) && !/\/\/.*\bend\s+else\s+begin\b/.test(line)) {
-        blockDepth++; // The 'end' decreases by 1, but 'begin' increases by 1, net is 0, but we track the begin
-        // Push the indentation for content inside this else block
+        // `end else begin` closes one block and opens another: net-zero on
+        // block depth. Pop the closed block before pushing the else block so
+        // a following top-level case is not over-indented by a stale entry.
+        if (indentStack.length > 0) {
+          indentStack.pop();
+        }
         const elseBlockIndent = currentIndent + unit;
         indentStack.push(elseBlockIndent);
       } else {
@@ -209,7 +273,7 @@ export function indentCaseStatements(lines: string[], indentSize: number): strin
       // Examples: STATE_NAME: begin, 3'b001: begin, {1'b1, 1'b0}: begin, default: begin
       // Also handle single-line case items without begin: 2'b00: result = value;
       const isCaseItemWithBegin = /^\s*(\{[^}]+\}|[\w']+(?:,\s*[\w']+)*)\s*:\s*begin\b/.test(line) || /^\s*default\s*:\s*begin\b/.test(line);
-      const isCaseItemSingleLine = /^\s*(\{[^}]+\}|[\w']+(?:,\s*[\w']+)*)\s*:\s*[^:]+$/.test(line) || /^\s*default\s*:\s*[^:]+$/.test(line);
+      const isCaseItemSingleLine = /^\s*(\{[^}]+\}|[\w']+(?:,\s*[\w']+)*)\s*:\s*.+$/.test(line) || /^\s*default\s*:\s*.+$/.test(line);
 
       if (isCaseItemWithBegin || isCaseItemSingleLine) {
         // Case item should be indented by one level from case
@@ -217,8 +281,7 @@ export function indentCaseStatements(lines: string[], indentSize: number): strin
         // Normalize spacing around assignment operators (but not for for loops or assign statements)
         let normalizedTrimmed = trimmed;
         if (!/^\s*for\s*\(/.test(trimmed) && !/^\s*assign\b/.test(trimmed)) {
-          normalizedTrimmed = normalizedTrimmed.replace(/([^=!<>])\s*=\s*([^=])/g, '$1 = $2');
-          normalizedTrimmed = normalizedTrimmed.replace(/([^<])\s*<=\s*/g, '$1 <= ');
+          normalizedTrimmed = normalizeEqSpacing(normalizedTrimmed);
         }
         result.push(caseInfo.caseItemIndent + normalizedTrimmed);
 
@@ -345,8 +408,7 @@ export function indentCaseStatements(lines: string[], indentSize: number): strin
         // Normalize spacing around assignment operators (but not for for loops or assign statements)
         let normalizedTrimmed = trimmed;
         if (!/^\s*for\s*\(/.test(trimmed) && !/^\s*assign\b/.test(trimmed)) {
-          normalizedTrimmed = normalizedTrimmed.replace(/([^=!<>])\s*=\s*([^=])/g, '$1 = $2');
-          normalizedTrimmed = normalizedTrimmed.replace(/([^<])\s*<=\s*/g, '$1 <= ');
+          normalizedTrimmed = normalizeEqSpacing(normalizedTrimmed);
         }
         result.push(contentIndent + normalizedTrimmed);
 

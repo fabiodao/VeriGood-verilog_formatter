@@ -1,6 +1,5 @@
 module test_multiline_conditions;
 
-
 // Test 1: Multi-line if condition - unformatted
 always @(*) begin
   if (signal_a &&
@@ -24,9 +23,9 @@ always @(*) begin
   if (enable &&
       valid &&
       ready) begin
-    state   = ACTIVE;
+    state = ACTIVE;
   end else begin
-    state   = IDLE;
+    state = IDLE;
   end
 end
 
@@ -93,8 +92,8 @@ end
 
 // Test 10: Multi-line ternary assignment
 assign result = (condition_a &&
-                 condition_b) ?
-                 value_true :
-                 value_false;
+                condition_b) ?
+                value_true :
+                value_false;
 
 endmodule

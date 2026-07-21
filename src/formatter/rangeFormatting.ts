@@ -266,10 +266,9 @@ function formatVerilogRange(
       result = alignPortDeclarationsInRange(result);
     }
 
-    // 11. Format module instantiations if requested (only if not module header and has actual instantiation structure)
-    // Check if the selection actually has always blocks
-    const hasAlwaysInRange = result.some(line => /^\s*(always|initial)\b/.test(line));
-    const shouldFormatInst = cfg.formatModuleInstantiations && hasModuleInst && !hasModuleHeader && !hasOnlyConnections && !(cfg.indentAlwaysBlocks && hasAlwaysInRange);
+    // 11. Format module instantiations if requested (only if not module header and has actual instantiation structure).
+    // The instantiation indent lookback handles always/control-block context itself.
+    const shouldFormatInst = cfg.formatModuleInstantiations && hasModuleInst && !hasModuleHeader && !hasOnlyConnections;
     
     if (shouldFormatInst) {
       try {
@@ -407,6 +406,7 @@ function alignAssignmentsInRange(lines: string[]): string[] {
 function alignWireDeclarationsInRange(lines: string[], cfg: Config): string[] {
   // Import the proper alignment function from wires.ts
   const { alignWireDeclGroup } = require('./alignment/wires');
+  const { declVarKind } = require('./utils/assignments');
   
   // Group consecutive wire/reg/logic declarations together
   // Groups are broken by:
@@ -414,15 +414,26 @@ function alignWireDeclarationsInRange(lines: string[], cfg: Config): string[] {
   // 2. Switching between declarations with/without initialization
   // 3. Switching between IO declarations (input/output/inout) and regular declarations
   const groups: string[][] = [];
+  const passThroughGroups = new Set<string[]>();
   let currentGroup: string[] = [];
   let currentGroupHasInit: boolean | null = null;
   let currentGroupIsIO: boolean | null = null;
+  let currentGroupVarKind: string | null = null;
+  let parenBalance = 0;
   
   for (const line of lines) {
     const trimmed = line.trim();
     
+    // Track parenthesis depth so declarations nested inside a port/param list
+    // (paren depth > 0) are not treated as alignable top-level declarations.
+    const parenDepthBefore = parenBalance;
+    {
+      const noCmt = line.replace(/\/\/.*$/, '').replace(/"(?:\\.|[^"\\])*"/g, '""');
+      parenBalance += (noCmt.match(/\(/g) || []).length - (noCmt.match(/\)/g) || []).length;
+      if (parenBalance < 0) parenBalance = 0;
+    }
     // Check if this is a wire/reg/logic declaration
-    const isDecl = /^\s*(wire|reg|logic|input|output|inout|integer)\b/.test(line);
+    const isDecl = parenDepthBefore === 0 && /^\s*(wire|reg|logic|input|output|inout|integer|genvar)\b/.test(line);
     const isComment = /^\s*\/\//.test(line);
     const isMacro = /^\s*`(ifn?def|else|endif)\b/.test(line);
     const isBlank = trimmed === '';
@@ -432,21 +443,25 @@ function alignWireDeclarationsInRange(lines: string[], cfg: Config): string[] {
       const lineWithoutComment = line.replace(/\/\/.*$/, '');
       const hasInit = /=/.test(lineWithoutComment);
       const isIO = /^\s*(input|output|inout)\b/.test(line);
+      const varKind = declVarKind(line);
       
       // Check if we need to break the group
       if (currentGroup.length > 0 && 
           (currentGroupHasInit !== null && currentGroupHasInit !== hasInit ||
-           currentGroupIsIO !== null && currentGroupIsIO !== isIO)) {
+           currentGroupIsIO !== null && currentGroupIsIO !== isIO ||
+           currentGroupVarKind !== null && currentGroupVarKind !== varKind)) {
         // Different type of declaration - flush current group and start new one
         groups.push(currentGroup);
         currentGroup = [line];
         currentGroupHasInit = hasInit;
         currentGroupIsIO = isIO;
+        currentGroupVarKind = varKind;
       } else {
         // Same type - add to current group
         currentGroup.push(line);
         if (currentGroupHasInit === null) currentGroupHasInit = hasInit;
         if (currentGroupIsIO === null) currentGroupIsIO = isIO;
+        if (currentGroupVarKind === null) currentGroupVarKind = varKind;
       }
     } else if (currentGroup.length > 0 && (isComment || isMacro || isBlank)) {
       // Comments, macros, and blank lines don't break groups
@@ -458,8 +473,11 @@ function alignWireDeclarationsInRange(lines: string[], cfg: Config): string[] {
         currentGroup = [];
         currentGroupHasInit = null;
         currentGroupIsIO = null;
+        currentGroupVarKind = null;
       }
-      groups.push([line]); // Non-declaration line as its own group
+      const passthroughGroup = [line];
+      groups.push(passthroughGroup); // Non-declaration line as its own group
+      if (parenDepthBefore > 0) passThroughGroups.add(passthroughGroup);
     }
   }
   
@@ -471,7 +489,7 @@ function alignWireDeclarationsInRange(lines: string[], cfg: Config): string[] {
   const result: string[] = [];
   for (const group of groups) {
     const firstTrimmed = group[0].trim();
-    if (/^\s*(wire|reg|logic|input|output|inout|integer)\b/.test(group[0])) {
+    if (!passThroughGroups.has(group) && /^\s*(wire|reg|logic|input|output|inout|integer|genvar)\b/.test(group[0])) {
       // This is a declaration group - use the proper alignment function
       const aligned = alignWireDeclGroup(group, cfg);
       result.push(...aligned);

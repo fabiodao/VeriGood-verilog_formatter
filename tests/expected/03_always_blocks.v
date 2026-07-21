@@ -1,6 +1,5 @@
 module test_always;
 
-
 // Test 1: Always block without begin/end (should add them)
 always @(posedge clk)
   data <= 1;

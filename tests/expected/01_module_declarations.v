@@ -4,7 +4,7 @@ module simple_module;
 endmodule
 
 // Test 2: Module with ports on declaration line
-module inline_ports (
+module inline_ports(
   input clk, output reg data
   );
 
@@ -65,7 +65,7 @@ module commented_params #(
 endmodule
 
 // Test 7: Empty module with just ports
-module just_ports (
+module just_ports(
   input  wire       clk     ,
   input  wire       rst_n   ,
   output reg  [7:0] data_out
@@ -74,7 +74,7 @@ module just_ports (
 endmodule
 
 // Test 8: Multi-port module with aligned comments (comma-less last port)
-module commented_ports (
+module commented_ports(
   input  wire        clk     , // clock
   input  wire  [7:0] addr    , // address bus
   output reg  [31:0] data_out  // registered output

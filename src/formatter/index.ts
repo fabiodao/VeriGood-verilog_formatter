@@ -10,6 +10,7 @@ import { Config, getConfig, hasAnyFeatureEnabled } from './types';
 import { applyCommentColumn, wrapComment } from './utils/comments';
 import { MacroAnnotator } from './utils/macros';
 import { isUVMCode } from './utils/uvmDetection';
+import { splitTopLevelAssign, declVarKind } from './utils/assignments';
 import { formatUVMDocument, formatUVMRange } from './uvmFormatter';
 
 // Import alignment modules
@@ -109,6 +110,14 @@ function fixModuleLevelIndentation(lines: string[], indentSize: number): string[
   let insideModuleHeader = false;
   let insideAlwaysOrInitial = false;
   let blockDepth = 0;
+  let funcTaskDepth = 0;
+  const countModuleBeginEnd = (t: string): number => {
+    let s = t.replace(/\/\/.*$/, '');
+    s = s.replace(/"(?:\\.|[^"\\])*"/g, '""');
+    const b = (s.match(/\bbegin\b/g) || []).length;
+    const e = (s.match(/\bend\b/g) || []).length;
+    return b - e;
+  };
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -137,13 +146,31 @@ function fixModuleLevelIndentation(lines: string[], indentSize: number): string[
     // Track always/initial blocks
     if (/^always\b|^initial\b/.test(trimmed)) {
       insideAlwaysOrInitial = true;
+      blockDepth += countModuleBeginEnd(trimmed);
+      if (blockDepth < 0) blockDepth = 0;
+      result.push(line);
+      continue;
+    }
+
+    // Track function/task scope so their local declarations are left alone
+    if (/^(?:virtual\s+|automatic\s+|static\s+|protected\s+|local\s+|extern\s+|pure\s+)*(?:function|task)\b/.test(trimmed)) {
+      funcTaskDepth++;
+      result.push(line);
+      continue;
+    }
+    if (/^(?:endfunction|endtask)\b/.test(trimmed)) {
+      if (funcTaskDepth > 0) funcTaskDepth--;
       result.push(line);
       continue;
     }
 
     // Track begin/end depth
     if (/\bbegin\b/.test(trimmed) && !/\/\/.*\bbegin\b/.test(line)) {
-      blockDepth++;
+      blockDepth += countModuleBeginEnd(trimmed);
+      if (blockDepth < 0) blockDepth = 0;
+      if (blockDepth === 0 && /^end\b/.test(trimmed)) {
+        insideAlwaysOrInitial = false;
+      }
       result.push(line);
       continue;
     }
@@ -162,8 +189,8 @@ function fixModuleLevelIndentation(lines: string[], indentSize: number): string[
     }
 
     // Fix indentation for module-level declarations
-    if (insideModule && !insideModuleHeader && !insideAlwaysOrInitial && blockDepth === 0) {
-      if (/^(wire|reg|logic|input|output|inout)\b/.test(trimmed)) {
+    if (insideModule && !insideModuleHeader && !insideAlwaysOrInitial && funcTaskDepth === 0 && blockDepth === 0) {
+      if (/^(wire|reg|logic|input|output|inout|assign)\b/.test(trimmed) || /^`(ifdef|ifndef|elsif|else|endif)\b/.test(trimmed) || /^\/\//.test(trimmed)) {
         result.push(unit + trimmed);
         continue;
       }
@@ -272,6 +299,35 @@ function normalizeIfdefIndentation(lines: string[]): string[] {
     }
   }
 
+  return result;
+}
+
+/**
+ * Helper function: Align `else/`elsif/`endif branches with their opening
+ * `ifdef/`ifndef so the whole conditional block shares one indentation level.
+ */
+function alignIfdefBranches(lines: string[]): string[] {
+  const result: string[] = [];
+  const stack: string[] = [];
+  const leadingOf = (l: string): string => {
+    const m = l.match(/^(\s*)/);
+    return m ? m[1] : '';
+  };
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (/^`(ifdef|ifndef)\b/.test(trimmed)) {
+      stack.push(leadingOf(line));
+      result.push(line);
+    } else if (/^`(else|elsif)\b/.test(trimmed)) {
+      const indent = stack.length ? stack[stack.length - 1] : leadingOf(line);
+      result.push(indent + trimmed);
+    } else if (/^`endif\b/.test(trimmed)) {
+      const indent = stack.length ? stack.pop()! : leadingOf(line);
+      result.push(indent + trimmed);
+    } else {
+      result.push(line);
+    }
+  }
   return result;
 }
 
@@ -426,6 +482,7 @@ export function formatDocument(document: vscode.TextDocument, options: vscode.Fo
   let moduleBodyActive = false;
   let functionDepth = 0;
   let alwaysDepth = 0;
+  let parenBalance = 0;
 
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i];
@@ -438,6 +495,15 @@ export function formatDocument(document: vscode.TextDocument, options: vscode.Fo
     // Annotate macro directives globally (only if enabled)
     if (cfg.annotateIfdefComments && /`(ifn?def|else|endif)\b/.test(line)) {
       line = annotateMacro(line);
+    }
+
+    // Track parenthesis depth so declarations nested inside port/param lists are
+    // not mistaken for alignable top-level declarations.
+    const parenDepthBefore = parenBalance;
+    {
+      const noCmt = line.replace(/\/\/.*$/, '').replace(/"(?:\\.|[^"\\])*"/g, '""');
+      parenBalance += (noCmt.match(/\(/g) || []).length - (noCmt.match(/\)/g) || []).length;
+      if (parenBalance < 0) parenBalance = 0;
     }
 
     // Module header accumulation (only if formatModuleHeaders enabled)
@@ -454,6 +520,7 @@ export function formatDocument(document: vscode.TextDocument, options: vscode.Fo
           const formattedHeader = formatModuleHeader(moduleHeaderLines, cfg);
           formattedHeader.forEach(h => processed.push(h));
           processed.push('');
+          blankCount = 1;
           inModuleHeader = false;
           moduleBodyActive = true;
         }
@@ -537,7 +604,7 @@ export function formatDocument(document: vscode.TextDocument, options: vscode.Fo
     }
 
     // Detect wire/reg/logic/input/output/inout declarations group
-    if (cfg.alignWireDeclSemicolons && /^\s*(wire|reg|logic|input|output|inout|integer)\b/.test(line)) {
+    if (cfg.alignWireDeclSemicolons && parenDepthBefore === 0 && !/\bbegin\b/.test(line) && /^\s*(wire|reg|logic|input|output|inout|integer|genvar)\b/.test(line)) {
       const lineWithoutComment = line.replace(/\/\/.*$/, '');
       const hasEqualSign = /=/.test(lineWithoutComment);
       const isIODecl = /^\s*(input|output|inout)\b/.test(line);
@@ -545,7 +612,7 @@ export function formatDocument(document: vscode.TextDocument, options: vscode.Fo
         const firstPendingWithoutComment = pendingWireDecls[0].text.replace(/\/\/.*$/, '');
         const firstPendingHasEqual = /=/.test(firstPendingWithoutComment);
         const firstPendingIsIO = /^\s*(input|output|inout)\b/.test(pendingWireDecls[0].text);
-        if (firstPendingIsIO !== isIODecl || firstPendingHasEqual !== hasEqualSign) {
+        if (firstPendingIsIO !== isIODecl || firstPendingHasEqual !== hasEqualSign || declVarKind(pendingWireDecls[0].text) !== declVarKind(line)) {
           flushWireDecls();
           wireGroupNonDeclCount = 0;
         }
@@ -648,7 +715,7 @@ export function formatDocument(document: vscode.TextDocument, options: vscode.Fo
     }
 
     // Generic non-blocking/blocking assignments
-    const genericAssignStart = cfg.alignAssignments && alwaysDepth === 0 && /^(.*?)\s*(<=|=)(?![=]).*;\s*(\/\/.*)?$/.test(line) && !/^\s*(wire|reg|logic|input|output|inout)\b/.test(line);
+    const genericAssignStart = cfg.alignAssignments && alwaysDepth === 0 && /;\s*(\/\/.*)?$/.test(line) && splitTopLevelAssign(line) !== null && !/^\s*(wire|reg|logic|input|output|inout)\b/.test(line);
     if (genericAssignStart) {
       pendingAssignments.push({ idx: i, text: line });
       continue;
@@ -693,8 +760,13 @@ export function formatDocument(document: vscode.TextDocument, options: vscode.Fo
     /^\s*(always|initial)\b/.test(line)
   );
 
+  // Detect function/task blocks so their bodies get indented even without always blocks
+  const hasFuncTaskBlocks = withFixedEndIf.some(line =>
+    /^\s*(?:virtual\s+)?(?:automatic\s+|static\s+)?(?:function|task)\b/.test(line)
+  );
+
   // Indent always blocks (conditional) - must run BEFORE alignMultilineConditions
-  const withAlways = cfg.indentAlwaysBlocks && hasAlwaysBlocks
+  const withAlways = cfg.indentAlwaysBlocks && (hasAlwaysBlocks || hasFuncTaskBlocks)
     ? indentAlwaysBlocks(withFixedEndIf, cfg.indentSize)
     : withFixedEndIf;
 
@@ -725,9 +797,10 @@ export function formatDocument(document: vscode.TextDocument, options: vscode.Fo
     }
   }
 
-  // Format module instantiations (conditional)
-  // Only skip if both: cfg.indentAlwaysBlocks is enabled AND file actually has always blocks
-  const withInstantiations = (cfg.formatModuleInstantiations && !(cfg.indentAlwaysBlocks && hasAlwaysBlocks))
+  // Format module instantiations (conditional). The instantiation indent
+  // lookback now handles always/generate/control-block context itself, so this
+  // runs regardless of whether the file has always blocks.
+  const withInstantiations = cfg.formatModuleInstantiations
     ? formatModuleInstantiations(controlBlocks, cfg.indentSize)
     : controlBlocks;
 
@@ -742,9 +815,12 @@ export function formatDocument(document: vscode.TextDocument, options: vscode.Fo
     : withCaseIndent;
 
   // Normalize ifdef directive indentation
-  const finalLines = cfg.indentAlwaysBlocks
+  let finalLines = cfg.indentAlwaysBlocks
     ? withBlockAlignment
     : normalizeIfdefIndentation(withBlockAlignment);
+  if (cfg.annotateIfdefComments) {
+    finalLines = alignIfdefBranches(finalLines);
+  }
 
   // Ensure blank lines are truly empty and formatting introduced no trailing
   // whitespace. The earlier strip only runs over the raw input lines, so alignment

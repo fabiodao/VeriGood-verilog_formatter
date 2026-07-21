@@ -2,6 +2,27 @@
 
 All notable changes to the extension will be documented in this file.
 
+## [1.9.0] - 2026-07-21
+
+### Added
+- `genvar` declarations are now aligned together with `wire`/`reg`/`logic`/`integer` declarations.
+- Unpacked dimensions (e.g. `reg [7:0] mem [0:255];`) are right-aligned into their own column just before the semicolon.
+- Consecutive procedural assignments (`=`/`<=`) inside `always`/`if`/`case` blocks are column-aligned on their operator, and multi-line right-hand sides are re-indented to the right-hand-side start column.
+
+### Changed
+- Module instantiation port and parameter connections are written without a space before the parenthesis (`.port(conn)` instead of `.port (conn)`), with connection and closing-parenthesis columns realigned accordingly.
+- Module headers emit the port-list `(` without a preceding space.
+- Module instantiation indentation is derived from the enclosing scope: a `begin`/`always`/`if`/`for`/`generate` opener indents the instantiation one level deeper, a module-level declaration matches its indent, and a closing keyword stops the lookback.
+- A comma-less final instantiation port reserves the comma column so its trailing `//` comment aligns with the other ports.
+
+### Fixed
+- The `#` is no longer dropped from parameterized module headers (which previously produced invalid Verilog).
+- Function/task local declarations are indented correctly, and re-running the formatter is now idempotent for them.
+- `` `ifdef ``/`` `else ``/`` `endif `` directives are indented consistently, including inside functions and `case` statements.
+- `end else begin` no longer over-indents a following top-level `case` statement (it is treated as net-zero on block depth).
+- Module instantiations are formatted consistently whether or not the file contains `always` blocks.
+- Removed a spurious extra blank line after module headers so `maxBlankLines` is respected.
+
 ## [1.8.3] - 2026-07-13
 
 ### Changed
