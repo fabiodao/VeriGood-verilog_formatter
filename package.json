@@ -1,7 +1,7 @@
 {
   "name": "verigood-verilog-formatter",
-  "displayName": "VeriGood - SystemVerilog/Verilog Formatter",
-  "description": "Verilog/SystemVerilog formatter with granular control over formatting features and UVM testbench support.",
+  "displayName": "%displayName%",
+  "description": "%description%",
   "version": "1.9.0",
   "publisher": "FabioOliveira",
   "icon": "icon.png",
@@ -70,97 +70,97 @@
       }
     ],
     "configuration": {
-      "title": "Verilog Formatter",
+      "title": "%configuration.title%",
       "properties": {
         "verilogFormatter.indentSize": {
           "type": "number",
           "default": 2,
-          "description": "Number of spaces per indentation level. When not explicitly set, the formatter inherits the editor's Tab Size (editor.tabSize)."
+          "description": "%indentSize.description%"
         },
         "verilogFormatter.maxBlankLines": {
           "type": "number",
           "default": 1,
-          "description": "Maximum number of consecutive blank lines to keep. Additional blank lines are collapsed."
+          "description": "%maxBlankLines.description%"
         },
         "verilogFormatter.alignPortList": {
           "type": "boolean",
           "default": true,
-          "description": "Align the direction, type, range, and name columns of ports in module headers."
+          "description": "%alignPortList.description%"
         },
         "verilogFormatter.alignParameters": {
           "type": "boolean",
           "default": true,
-          "description": "Align parameters and localparams in module headers on their '=' sign."
+          "description": "%alignParameters.description%"
         },
         "verilogFormatter.wrapPortList": {
           "type": "boolean",
           "default": true,
-          "description": "Wrap port lists onto multiple lines when they exceed the configured line length."
+          "description": "%wrapPortList.description%"
         },
         "verilogFormatter.lineLength": {
           "type": "number",
           "default": 160,
-          "description": "Maximum line length used as a wrapping guideline."
+          "description": "%lineLength.description%"
         },
         "verilogFormatter.removeTrailingWhitespace": {
           "type": "boolean",
           "default": true,
-          "description": "Remove trailing whitespace and ensure blank lines contain no spaces."
+          "description": "%removeTrailingWhitespace.description%"
         },
         "verilogFormatter.alignAssignments": {
           "type": "boolean",
           "default": true,
-          "description": "Align the '='/'<=' operators of consecutive assign and procedural assignments. Semicolons stay tight to the right-hand side."
+          "description": "%alignAssignments.description%"
         },
         "verilogFormatter.alignWireDeclSemicolons": {
           "type": "boolean",
           "default": true,
-          "description": "Align the trailing semicolons of consecutive wire/reg/logic declarations."
+          "description": "%alignWireDeclSemicolons.description%"
         },
         "verilogFormatter.commentColumn": {
           "type": "number",
           "default": 0,
-          "description": "Column at which to align trailing '//' comments. Set to 0 to disable comment-column alignment."
+          "description": "%commentColumn.description%"
         },
         "verilogFormatter.formatModuleInstantiations": {
           "type": "boolean",
           "default": true,
-          "description": "Format module instantiations, aligning port and parameter connections."
+          "description": "%formatModuleInstantiations.description%"
         },
         "verilogFormatter.formatModuleHeaders": {
           "type": "boolean",
           "default": true,
-          "description": "Format module headers with aligned ports and parameters."
+          "description": "%formatModuleHeaders.description%"
         },
         "verilogFormatter.indentAlwaysBlocks": {
           "type": "boolean",
           "default": true,
-          "description": "Indent the contents of always, initial, and other procedural blocks."
+          "description": "%indentAlwaysBlocks.description%"
         },
         "verilogFormatter.enforceBeginEnd": {
           "type": "boolean",
           "default": true,
-          "description": "Add begin/end blocks around single-statement if/else/for bodies."
+          "description": "%enforceBeginEnd.description%"
         },
         "verilogFormatter.indentCaseStatements": {
           "type": "boolean",
           "default": true,
-          "description": "Indent case statements and their case items."
+          "description": "%indentCaseStatements.description%"
         },
         "verilogFormatter.annotateIfdefComments": {
           "type": "boolean",
           "default": true,
-          "description": "Annotate `else and `endif directives with the originating macro name as a trailing comment."
+          "description": "%annotateIfdefComments.description%"
         },
         "verilogFormatter.enableUVMFormatting": {
           "type": "boolean",
           "default": true,
-          "description": "Automatically detect UVM/SystemVerilog testbenches and format them with UVM conventions, independent of RTL formatting (no module-level alignment, editor-controlled indentation)."
+          "description": "%enableUVMFormatting.description%"
         },
         "verilogFormatter.uvmLineLength": {
           "type": "number",
           "default": 100,
-          "description": "Maximum line length for UVM testbench code (industry standard is 100 characters)."
+          "description": "%uvmLineLength.description%"
         },
         "verilogFormatter.expandSingleLineModules": {
           "type": "array",
@@ -168,7 +168,7 @@
             "type": "string"
           },
           "default": [],
-          "description": "List of module names whose single-line instantiations should be expanded to multi-line format. Example: [\"ILF_REG\", \"DFF\"]"
+          "description": "%expandSingleLineModules.description%"
         },
         "verilogFormatter.collapseSingleLineModules": {
           "type": "array",
@@ -176,12 +176,12 @@
             "type": "string"
           },
           "default": [],
-          "description": "List of module names whose instantiations should be collapsed to single-line format. Example: [\"ILF_REG\", \"DFF\"]"
+          "description": "%collapseSingleLineModules.description%"
         },
         "verilogFormatter.preserveInstantiationStyle": {
           "type": "boolean",
           "default": false,
-          "description": "Preserve original instantiation style: single-line stays single-line, multi-line stays multi-line. Lower priority than expandSingleLineModules and collapseSingleLineModules."
+          "description": "%preserveInstantiationStyle.description%"
         }
       }
     }
