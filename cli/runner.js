@@ -35,7 +35,8 @@ const BOOLEAN_DEFAULTS = {
   enforceBeginEnd: true,
   indentCaseStatements: true,
   annotateIfdefComments: true,
-  enableUVMFormatting: true
+  enableUVMFormatting: true,
+  preserveInstantiationStyle: false
 };
 
 // `indentSize` is handled specially (passed straight to formatVerilogText).
@@ -45,6 +46,11 @@ const NUMBER_DEFAULTS = {
   lineLength: 160,
   commentColumn: 0,
   uvmLineLength: 100
+};
+
+const ARRAY_DEFAULTS = {
+  expandSingleLineModules: [],
+  collapseSingleLineModules: []
 };
 
 const ALIASES = {
@@ -65,7 +71,7 @@ function camelToKebab(name) {
 }
 
 const FLAG_TO_KEY = {};
-for (const key of [...Object.keys(BOOLEAN_DEFAULTS), ...Object.keys(NUMBER_DEFAULTS)]) {
+for (const key of [...Object.keys(BOOLEAN_DEFAULTS), ...Object.keys(NUMBER_DEFAULTS), ...Object.keys(ARRAY_DEFAULTS)]) {
   FLAG_TO_KEY[camelToKebab(key)] = key;
 }
 for (const [alias, key] of Object.entries(ALIASES)) {
@@ -77,6 +83,9 @@ function isBooleanKey(key) {
 }
 function isNumberKey(key) {
   return Object.prototype.hasOwnProperty.call(NUMBER_DEFAULTS, key);
+}
+function isArrayKey(key) {
+  return Object.prototype.hasOwnProperty.call(ARRAY_DEFAULTS, key);
 }
 
 function fail(message) {
@@ -165,6 +174,15 @@ function parseArgs(argv) {
     if (isNumberKey(key)) {
       const value = inlineValue !== undefined ? inlineValue : argv[++i];
       opts.overrides[key] = parseNumber(flagName, value);
+      continue;
+    }
+
+    if (isArrayKey(key)) {
+      const value = inlineValue !== undefined ? inlineValue : argv[++i];
+      if (value === undefined) fail(`--${flagName} expects a value`);
+      // Parse comma-separated values
+      const arrayValue = value.split(',').map(s => s.trim()).filter(s => s.length > 0);
+      opts.overrides[key] = arrayValue;
       continue;
     }
 
@@ -261,11 +279,19 @@ function printHelp() {
   }
   lines.push('  --[no-]uvm                             alias for --[no-]enable-uvm-formatting');
   lines.push('');
+  lines.push('Array options (comma-separated values):');
+  for (const key of Object.keys(ARRAY_DEFAULTS)) {
+    const flag = `--${camelToKebab(key)} <values>`;
+    lines.push(`  ${flag.padEnd(38)} default: ${ARRAY_DEFAULTS[key].length > 0 ? ARRAY_DEFAULTS[key].join(',') : '[]'}`);
+  }
+  lines.push('');
   lines.push('Examples:');
   lines.push('  verigood-fmt design.v');
   lines.push('  verigood-fmt -w rtl/');
   lines.push('  verigood-fmt -c rtl/ generated/top.v');
   lines.push('  verigood-fmt -w --indent-size 4 --no-indent-always-blocks a.v');
+  lines.push('  verigood-fmt --expand-single-line-modules ILF_REG,DFF a.v');
+  lines.push('  verigood-fmt --preserve-instantiation-style a.v');
   process.stdout.write(lines.join('\n') + '\n');
 }
 

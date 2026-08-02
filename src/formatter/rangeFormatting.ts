@@ -67,6 +67,9 @@ export function formatRange(
     enforceBeginEnd: wcfg.get<boolean>('enforceBeginEnd', true),
     indentCaseStatements: wcfg.get<boolean>('indentCaseStatements', true),
     annotateIfdefComments: wcfg.get<boolean>('annotateIfdefComments', true),
+    expandSingleLineModules: wcfg.get<string[]>('expandSingleLineModules', []),
+    collapseSingleLineModules: wcfg.get<string[]>('collapseSingleLineModules', []),
+    preserveInstantiationStyle: wcfg.get<boolean>('preserveInstantiationStyle', false),
   };
 
   // Format the selected lines
@@ -272,7 +275,7 @@ function formatVerilogRange(
     
     if (shouldFormatInst) {
       try {
-        result = formatModuleInstantiations(result, indentSize);
+        result = formatModuleInstantiations(result, indentSize, cfg);
       } catch (e) {
         console.error('Range formatting: module instantiation error', e);
       }

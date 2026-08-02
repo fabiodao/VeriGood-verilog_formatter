@@ -4,3 +4,5 @@ node_modules/
 tests/outputs/
 tests/logs/
 *.vsix
+reasonix.toml
+.reasonix/

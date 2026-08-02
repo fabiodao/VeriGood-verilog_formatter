@@ -161,6 +161,27 @@
           "type": "number",
           "default": 100,
           "description": "Maximum line length for UVM testbench code (industry standard is 100 characters)."
+        },
+        "verilogFormatter.expandSingleLineModules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "List of module names whose single-line instantiations should be expanded to multi-line format. Example: [\"ILF_REG\", \"DFF\"]"
+        },
+        "verilogFormatter.collapseSingleLineModules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "List of module names whose instantiations should be collapsed to single-line format. Example: [\"ILF_REG\", \"DFF\"]"
+        },
+        "verilogFormatter.preserveInstantiationStyle": {
+          "type": "boolean",
+          "default": false,
+          "description": "Preserve original instantiation style: single-line stays single-line, multi-line stays multi-line. Lower priority than expandSingleLineModules and collapseSingleLineModules."
         }
       }
     }

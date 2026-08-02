@@ -801,7 +801,7 @@ export function formatDocument(document: vscode.TextDocument, options: vscode.Fo
   // lookback now handles always/generate/control-block context itself, so this
   // runs regardless of whether the file has always blocks.
   const withInstantiations = cfg.formatModuleInstantiations
-    ? formatModuleInstantiations(controlBlocks, cfg.indentSize)
+    ? formatModuleInstantiations(controlBlocks, cfg.indentSize, cfg)
     : controlBlocks;
 
   // Indent case statements (conditional)
