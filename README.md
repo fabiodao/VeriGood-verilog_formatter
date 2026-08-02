@@ -4,7 +4,7 @@
 [![Installs](https://img.shields.io/visual-studio-marketplace/i/FabioOliveira.verigood-verilog-formatter?logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=FabioOliveira.verigood-verilog-formatter)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> **[中文文档 / Chinese README](README_zh.md)**
+> **[中文文档 / Chinese README](README.zh-cn.md)**
 
 A powerful Verilog/SystemVerilog code formatter for VS Code with **granular control** over every formatting feature. Unlike other formatters that force a specific style, VeriGood lets you enable or disable each feature independently.
 
