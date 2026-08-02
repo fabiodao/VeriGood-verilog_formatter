@@ -38,6 +38,17 @@
     "Formatters",
     "Programming Languages"
   ],
+  "localizations": [
+    {
+      "language": "zh-cn",
+      "translations": [
+        {
+          "id": "vscode.extension.displayName",
+          "path": "./package.nls.zh-cn.json"
+        }
+      ]
+    }
+  ],
   "activationEvents": [
     "onLanguage:verilog",
     "onLanguage:systemverilog"
