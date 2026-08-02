@@ -81,7 +81,8 @@ function explodeCompactInstantiation(lines: string[]): string[] {
   return out;
 }
 
-export function formatSingleInstantiation(lines: string[], baseIndent: string, unit: string): string[] {
+export function formatSingleInstantiation(lines: string[], baseIndent: string, unit: string, forceExpand: boolean = false): string[] {
+  // Always explode compact instantiations - the function handles multi-line input gracefully
   lines = explodeCompactInstantiation(lines);
   // Determine if this is a parameterized instantiation by checking the first line
   const firstLine = lines[0].trim();

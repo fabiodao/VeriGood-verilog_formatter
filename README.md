@@ -4,6 +4,8 @@
 [![Installs](https://img.shields.io/visual-studio-marketplace/i/FabioOliveira.verigood-verilog-formatter?logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=FabioOliveira.verigood-verilog-formatter)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
+> **[中文文档 / Chinese README](README.zh-cn.md)**
+
 A powerful Verilog/SystemVerilog code formatter for VS Code with **granular control** over every formatting feature. Unlike other formatters that force a specific style, VeriGood lets you enable or disable each feature independently.
 
 ## Why VeriGood?
@@ -98,6 +100,80 @@ my_fifo #(
     );
 ```
 
+### Instantiation Style Control
+Control how module instantiations are formatted with three configuration options:
+
+#### Expand Single-Line Modules
+Force specific modules to always be formatted as multi-line, even if they were originally single-line:
+
+```json
+{
+  "verilogFormatter.expandSingleLineModules": ["ILF_REG", "DFF"]
+}
+```
+
+```verilog
+// Before (single-line)
+ILF_REG #(.BITS(8)) u_reg (.Q(out), .D(in), .CLK(clk));
+
+// After (expanded to multi-line)
+ILF_REG #(
+  .BITS (8)
+  ) u_reg (
+    .Q   (out),
+    .D   (in ),
+    .CLK (clk)
+    );
+```
+
+#### Collapse Single-Line Modules
+Force specific modules to always be formatted as single-line:
+
+```json
+{
+  "verilogFormatter.collapseSingleLineModules": ["DFF"]
+}
+```
+
+```verilog
+// Before (multi-line)
+DFF u_ff (
+  .Q   (out),
+  .D   (in ),
+  .CLK (clk)
+);
+
+// After (collapsed to single-line)
+DFF u_ff (.Q(out),.D(in),.CLK(clk));
+```
+
+#### Preserve Original Style
+Keep the original formatting style: single-line stays single-line, multi-line stays multi-line:
+
+```json
+{
+  "verilogFormatter.preserveInstantiationStyle": true
+}
+```
+
+```verilog
+// Single-line stays single-line
+ILF_REG #(.BITS(8)) u_reg (.Q(out), .D(in), .CLK(clk));
+
+// Multi-line stays multi-line (with proper alignment)
+DFF u_ff (
+  .Q   (out),
+  .D   (in ),
+  .CLK (clk)
+  );
+```
+
+#### Priority Order
+When multiple options conflict, the priority is:
+1. `collapseSingleLineModules` (highest priority)
+2. `expandSingleLineModules`
+3. `preserveInstantiationStyle` (lowest priority)
+
 ### Additional Features
 - **Always/Initial Block Indentation** - Proper nesting inside procedural blocks
 - **Case Statement Formatting** - Correct indentation for case items
@@ -171,6 +247,9 @@ All settings are prefixed with `verilogFormatter.` and can be configured in VS C
 | `commentColumn` | `0` | Column for comment alignment (0 = disabled) |
 | `lineLength` | `160` | Maximum line length guideline |
 | `removeTrailingWhitespace` | `true` | Remove trailing whitespace |
+| `expandSingleLineModules` | `[]` | List of module names whose single-line instantiations should be expanded to multi-line format |
+| `collapseSingleLineModules` | `[]` | List of module names whose instantiations should be collapsed to single-line format |
+| `preserveInstantiationStyle` | `false` | Preserve original instantiation style: single-line stays single-line, multi-line stays multi-line |
 
 ### Example Settings
 

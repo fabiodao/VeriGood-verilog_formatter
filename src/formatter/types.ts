@@ -22,6 +22,12 @@ export interface Config {
   annotateIfdefComments: boolean;
   enableUVMFormatting?: boolean;
   uvmLineLength?: number;
+  /** Modules whose single-line instantiations should be expanded to multi-line */
+  expandSingleLineModules?: string[];
+  /** Modules whose instantiations should be collapsed to single line */
+  collapseSingleLineModules?: string[];
+  /** Preserve original instantiation style: single-line stays single-line, multi-line stays multi-line */
+  preserveInstantiationStyle?: boolean;
 }
 
 /**
@@ -49,7 +55,10 @@ export const DEFAULT_CONFIG: Required<Config> = {
   indentCaseStatements: true,
   annotateIfdefComments: true,
   enableUVMFormatting: true,
-  uvmLineLength: 100
+  uvmLineLength: 100,
+  expandSingleLineModules: [],
+  collapseSingleLineModules: [],
+  preserveInstantiationStyle: false
 };
 
 /**
@@ -108,7 +117,10 @@ export function getConfig(options?: vscode.FormattingOptions): Config {
     indentCaseStatements: wcfg.get<boolean>('indentCaseStatements', DEFAULT_CONFIG.indentCaseStatements),
     annotateIfdefComments: wcfg.get<boolean>('annotateIfdefComments', DEFAULT_CONFIG.annotateIfdefComments),
     enableUVMFormatting: wcfg.get<boolean>('enableUVMFormatting', DEFAULT_CONFIG.enableUVMFormatting),
-    uvmLineLength: wcfg.get<number>('uvmLineLength', DEFAULT_CONFIG.uvmLineLength)
+    uvmLineLength: wcfg.get<number>('uvmLineLength', DEFAULT_CONFIG.uvmLineLength),
+    expandSingleLineModules: wcfg.get<string[]>('expandSingleLineModules', DEFAULT_CONFIG.expandSingleLineModules),
+    collapseSingleLineModules: wcfg.get<string[]>('collapseSingleLineModules', DEFAULT_CONFIG.collapseSingleLineModules),
+    preserveInstantiationStyle: wcfg.get<boolean>('preserveInstantiationStyle', DEFAULT_CONFIG.preserveInstantiationStyle)
   });
 }
 

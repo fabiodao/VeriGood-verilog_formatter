@@ -26,3 +26,4 @@ LOGGING_SYSTEM.md
 # Dependencies & build artifacts
 node_modules/**
 *.vsix
+.reasonix/**

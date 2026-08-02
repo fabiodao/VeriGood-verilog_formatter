@@ -5,8 +5,9 @@
  */
 
 import { formatSingleInstantiation } from './singleInstantiation';
+import { Config } from '../types';
 
-export function formatModuleInstantiations(lines: string[], indentSize: number): string[] {
+export function formatModuleInstantiations(lines: string[], indentSize: number, config?: Config): string[] {
   const unit = ' '.repeat(indentSize);
   const result: string[] = [];
   let i = 0;
@@ -103,8 +104,46 @@ export function formatModuleInstantiations(lines: string[], indentSize: number):
         }
       }
 
+      // Check if this module should be expanded or collapsed based on config
+      const moduleName = extractModuleName(instLines);
+      let shouldExpand = false;
+      let shouldCollapse = false;
+      let shouldPreserveStyle = false;
+
+      if (config && moduleName) {
+        const expandList = config.expandSingleLineModules || [];
+        const collapseList = config.collapseSingleLineModules || [];
+        
+        // Priority: collapseSingleLineModules > expandSingleLineModules > preserveInstantiationStyle
+        if (collapseList.includes(moduleName)) {
+          shouldCollapse = true;
+        } else if (expandList.includes(moduleName)) {
+          shouldExpand = true;
+        } else if (config.preserveInstantiationStyle) {
+          shouldPreserveStyle = true;
+        }
+      }
+
       // Format the instantiation
-      const formatted = formatSingleInstantiation(instLines, baseIndent, unit);
+      let formatted: string[];
+      if (shouldCollapse) {
+        formatted = collapseToSingleLine(instLines, baseIndent);
+      } else if (shouldExpand) {
+        formatted = formatSingleInstantiation(instLines, baseIndent, unit, true);
+      } else if (shouldPreserveStyle) {
+        // Preserve original style: single-line stays single-line, multi-line stays multi-line
+        const isOriginalSingleLine = instLines.length === 1;
+        if (isOriginalSingleLine) {
+          // Keep as single line but format it properly
+          formatted = collapseToSingleLine(instLines, baseIndent);
+        } else {
+          // Keep as multi-line and format it properly
+          formatted = formatSingleInstantiation(instLines, baseIndent, unit);
+        }
+      } else {
+        formatted = formatSingleInstantiation(instLines, baseIndent, unit);
+      }
+      
       formatted.forEach(l => result.push(l));
       i = j;
     } else {
@@ -114,4 +153,51 @@ export function formatModuleInstantiations(lines: string[], indentSize: number):
   }
 
   return result;
+}
+
+/**
+ * Extract module name from instantiation lines
+ */
+function extractModuleName(lines: string[]): string | null {
+  if (!lines || lines.length === 0) return null;
+  const firstLine = lines[0].trim();
+  
+  // Match module_name #( or module_name instance_name (
+  const match = firstLine.match(/^([A-Za-z_][A-Za-z0-9_]*)\s+(?:#|([A-Za-z_][A-Za-z0-9_]*)\s*\()/);
+  if (match) {
+    return match[1];
+  }
+  
+  // Match just module_name (for split instantiations)
+  const simpleMatch = firstLine.match(/^([A-Za-z_][A-Za-z0-9_]*)$/);
+  if (simpleMatch) {
+    return simpleMatch[1];
+  }
+  
+  return null;
+}
+
+/**
+ * Collapse a multi-line instantiation to a single line
+ */
+function collapseToSingleLine(lines: string[], baseIndent: string): string[] {
+  if (!lines || lines.length === 0) return lines;
+  
+  // If already single line, return as-is
+  if (lines.length === 1) {
+    return lines;
+  }
+  
+  // Join all lines and normalize whitespace
+  const fullText = lines.map(l => l.trim()).join(' ');
+  
+  // Remove extra whitespace
+  const normalized = fullText
+    .replace(/\s+/g, ' ')
+    .replace(/\s*\(\s*/g, '(')
+    .replace(/\s*\)\s*/g, ')')
+    .replace(/\s*,\s*/g, ',')
+    .replace(/\s*;\s*$/, ';');
+  
+  return [baseIndent + normalized];
 }
